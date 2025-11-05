@@ -1,0 +1,4 @@
+message_id,sender,recipient,subject,sent_at,has_attachment
+1,john.doe@enron.com,jane.smith@enron.com,Project Update,2001-06-18 09:32:00,false
+2,jane.smith@enron.com,john.doe@enron.com,Re: Project Update,2001-06-18 10:15:00,false
+3,mark.taylor@enron.com,finance.team@enron.com,Quarterly Results,2001-06-19 08:05:00,true

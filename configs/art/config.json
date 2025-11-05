@@ -1,0 +1,7 @@
+{
+  "epsilon": 0.2,
+  "epsilon_step": 0.02,
+  "max_iter": 10,
+  "norm": "inf",
+  "batch_size": 5
+}

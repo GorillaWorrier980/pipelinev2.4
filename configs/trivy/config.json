@@ -1,0 +1,5 @@
+{
+  "image": "ghcr.io/juice-shop/juice-shop:latest",
+  "severity": ["CRITICAL", "HIGH"],
+  "format": "json"
+}

@@ -1,0 +1,79 @@
+version: "3.9"
+services:
+  ge:
+    build: ./docker/ge
+    volumes:
+      - ./artifacts/data/tabular/tabular_enron.csv:/data/tabular_enron.csv:ro
+      - ./reports/ge:/reports
+
+  presidio:
+    build: ./docker/presidio
+    volumes:
+      - ./artifacts/data/text/enron_text.jsonl:/data/enron_text.jsonl:ro
+      - ./reports/presidio:/reports
+
+  shap:
+    build: ./docker/shap
+    environment:
+      SHAP_MODEL: /artifacts/mnist_cnn.pt
+      SHAP_METADATA: /artifacts/metadata.json
+      SHAP_OUTPUT: /reports/global.json
+      SHAP_SAMPLE_DATA: /samples/mnist_samples.npz
+    volumes:
+      - ./artifacts/models/classifier/mnist_cnn.pt:/artifacts/mnist_cnn.pt
+      - ./artifacts/models/classifier/metadata.json:/artifacts/metadata.json:ro
+      - ./artifacts/data/models:/samples
+      - ./reports/shap:/reports
+
+  art:
+    build: ./docker/art
+    environment:
+      ART_MODEL: /artifacts/mnist_cnn.pt
+      ART_METADATA: /artifacts/metadata.json
+      ART_CONFIG: /configs/config.json
+      ART_OUTPUT: /reports/robustness.json
+      ART_SAMPLE_DATA: /samples/mnist_samples.npz
+    volumes:
+      - ./artifacts/models/classifier/mnist_cnn.pt:/artifacts/mnist_cnn.pt
+      - ./artifacts/models/classifier/metadata.json:/artifacts/metadata.json:ro
+      - ./artifacts/data/models:/samples
+      - ./configs/art/config.json:/configs/config.json:ro
+      - ./reports/art:/reports
+
+  ragas:
+    build: ./docker/ragas
+    environment:
+      RAGAS_CHUNKS: /data/chunks.jsonl
+      RAGAS_QA: /data/qa_set.jsonl
+      RAGAS_DETAIL: /reports/per_question.jsonl
+      RAGAS_SUMMARY: /reports/summary.json
+    volumes:
+      - ./artifacts/data/rag_chunks/chunks.jsonl:/data/chunks.jsonl:ro
+      - ./artifacts/data/qa/qa_set.jsonl:/data/qa_set.jsonl:ro
+      - ./reports/ragas:/reports
+
+  trivy:
+    build: ./docker/trivy
+    volumes:
+      - ./configs/trivy:/configs:ro
+      - ./reports/trivy:/reports
+
+  aggregator:
+    build: ./docker/aggregator
+    depends_on:
+      - ge
+      - presidio
+      - shap
+      - art
+      - ragas
+      - trivy
+    environment:
+      REPORT_GE: /workspace/reports/ge/summary.json
+      REPORT_PRESIDIO: /workspace/reports/presidio/redaction_summary.json
+      REPORT_SHAP: /workspace/reports/shap/global.json
+      REPORT_ART: /workspace/reports/art/robustness.json
+      REPORT_RAGAS: /workspace/reports/ragas/summary.json
+      REPORT_TRIVY: /workspace/reports/trivy/cve.json
+      AGGREGATOR_OUTPUT: /workspace/REPORT_SUMMARY.json
+    volumes:
+      - ./:/workspace
