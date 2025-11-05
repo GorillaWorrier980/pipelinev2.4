@@ -20,9 +20,11 @@ jobs:
       - name: Execute quality gates pipeline
         run: python run_pipeline.py
 
-      - name: Upload aggregated summary
+      - name: Upload aggregated reports
         uses: actions/upload-artifact@v4
         with:
           name: pipeline-summary
-          path: REPORT_SUMMARY.json
+          path: |
+            REPORT_SUMMARY.json
+            reports/dashboard/index.html
           if-no-files-found: error

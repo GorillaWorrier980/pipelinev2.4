@@ -82,8 +82,9 @@ The dashboard summarizes each gate using the following success checks:
 ## Continuous Integration
 
 Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub Action, which executes `python run_pipeline.py`
-on Ubuntu and uploads the generated `REPORT_SUMMARY.json` as a build artifact. You can download the artifact from the workflow
-run page to inspect the consolidated results without executing the pipeline locally.
+on Ubuntu and uploads the consolidated `REPORT_SUMMARY.json` as well as the HTML dashboard (`reports/dashboard/index.html`) as
+build artifacts. Download the artifact from the workflow run page to review the structured JSON summary or open the dashboard
+without executing the pipeline locally.
 
 ## Extending
 
