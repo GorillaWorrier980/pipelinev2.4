@@ -33,13 +33,17 @@ reports/
 
 1. Populate the `artifacts/` folders with your data, model, and index assets. The repository ships with lightweight samples so the pipeline can run end-to-end without external downloads.
 2. (Optional) Adjust configuration files under `configs/`.
-3. Launch all gates via Docker Compose:
+3. Run the full pipeline locally (no Docker required) using the lightweight Python entrypoints:
 
    ```bash
-   docker compose up --build
+   python run_pipeline.py
    ```
 
-4. When the run completes, inspect the individual reports under `reports/**` and the consolidated `REPORT_SUMMARY.json` at the repository root.
+   Each gate is executed sequentially and the aggregated report is refreshed at the end of the run.
+
+4. (Optional) You can still orchestrate the original Docker services via `docker compose up --build` if you prefer container isolation.
+
+5. When the run completes, inspect the individual reports under `reports/**` and the consolidated `REPORT_SUMMARY.json` at the repository root.
 
 ### Individual Containers
 

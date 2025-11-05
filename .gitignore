@@ -1,5 +1,6 @@
 # Generated reports
 reports/**/*.json
+reports/**/*.jsonl
 REPORT_SUMMARY.json
 
 # Python cache
