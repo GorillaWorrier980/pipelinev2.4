@@ -43,7 +43,7 @@ reports/
 
 4. (Optional) You can still orchestrate the original Docker services via `docker compose up --build` if you prefer container isolation.
 
-5. When the run completes, inspect the individual reports under `reports/**` and the consolidated `REPORT_SUMMARY.json` at the repository root.
+5. When the run completes, inspect the individual reports under `reports/**`, the consolidated `REPORT_SUMMARY.json` at the repository root, and the HTML dashboard at `reports/dashboard/index.html` for a quick pass/fail snapshot.
 
 ### Individual Containers
 
@@ -62,8 +62,22 @@ All containers accept environment variables (see `docker-compose.yml`) so you ca
 * `reports/shap/global.json` – Mean absolute SHAP contributions
 * `reports/art/robustness.json` – Clean vs. adversarial accuracies
 * `reports/ragas/*.json[l]` – Retrieval support metrics per question and summary
- * `reports/trivy/cve.json` – Vulnerability report for the configured container image
- * `REPORT_SUMMARY.json` – Aggregated snapshot across all gates
+* `reports/trivy/cve.json` – Vulnerability report for the configured container image
+* `reports/dashboard/index.html` – Human-friendly overview of gate status and pass criteria
+* `REPORT_SUMMARY.json` – Aggregated snapshot across all gates, including structured pass/fail metadata
+
+### Dashboard Pass Criteria
+
+The dashboard summarizes each gate using the following success checks:
+
+| Gate | Pass Criteria |
+| --- | --- |
+| Great Expectations | All configured expectations succeed. |
+| Presidio | At least one PII entity is detected in the sample. |
+| SHAP | Mean absolute importance scores sum to 1.0 (±0.01). |
+| ART | FGSM and PGD adversarial accuracies remain ≥ 0.70. |
+| RAGAS | Mean support score meets or exceeds 0.60. |
+| Trivy | No HIGH or CRITICAL vulnerabilities found. |
 
 ## Continuous Integration
 
