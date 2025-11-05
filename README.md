@@ -62,8 +62,14 @@ All containers accept environment variables (see `docker-compose.yml`) so you ca
 * `reports/shap/global.json` – Mean absolute SHAP contributions
 * `reports/art/robustness.json` – Clean vs. adversarial accuracies
 * `reports/ragas/*.json[l]` – Retrieval support metrics per question and summary
-* `reports/trivy/cve.json` – Vulnerability report for the configured container image
-* `REPORT_SUMMARY.json` – Aggregated snapshot across all gates
+ * `reports/trivy/cve.json` – Vulnerability report for the configured container image
+ * `REPORT_SUMMARY.json` – Aggregated snapshot across all gates
+
+## Continuous Integration
+
+Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub Action, which executes `python run_pipeline.py`
+on Ubuntu and uploads the generated `REPORT_SUMMARY.json` as a build artifact. You can download the artifact from the workflow
+run page to inspect the consolidated results without executing the pipeline locally.
 
 ## Extending
 
