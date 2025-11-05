@@ -45,6 +45,13 @@ def main() -> None:
     with output_path.open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
+    # Echo a concise snapshot so CI logs show where the outputs live.
+    available = ", ".join(sorted(summary["reports"].keys())) or "(none)"
+    missing = ", ".join(summary["missing_reports"]) or "(none)"
+    print("Aggregator wrote consolidated report to", output_path)
+    print("Available reports:", available)
+    print("Missing reports:", missing)
+
 
 if __name__ == "__main__":
     main()
