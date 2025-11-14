@@ -111,7 +111,7 @@ def load_json(path: Path):
         return None
 
 
-def build_gate_statuses(summary):
+def build_gate_statuses(summary, resolved_paths):
     statuses = []
     for gate, config in GATE_RULES.items():
         report = summary["reports"].get(gate)
@@ -123,6 +123,7 @@ def build_gate_statuses(summary):
                 "passed": passed,
                 "details": details,
                 "pass_criteria": config["pass_criteria"],
+                "report_path": str(resolved_paths.get(gate, "")),
             }
         )
     return statuses
@@ -180,6 +181,9 @@ def render_dashboard(statuses, generated_at):
 def main() -> None:
     output_path = Path(os.environ.get("AGGREGATOR_OUTPUT", "REPORT_SUMMARY.json"))
     dashboard_path = Path(os.environ.get("DASHBOARD_OUTPUT", "reports/dashboard/index.html"))
+    gate_status_dir = Path(
+        os.environ.get("DASHBOARD_GATES_DIR", "reports/dashboard/gates")
+    )
 
     summary = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
@@ -187,17 +191,39 @@ def main() -> None:
         "missing_reports": [],
     }
 
+    resolved_paths = {}
     for name, relative_path in REPORT_PATHS.items():
         report_path = Path(os.environ.get(f"REPORT_{name.upper()}", relative_path))
+        resolved_paths[name] = report_path
         data = load_json(report_path)
         if data is None:
             summary["missing_reports"].append(str(report_path))
         else:
             summary["reports"][name] = data
 
-    gate_statuses = build_gate_statuses(summary)
+    gate_statuses = build_gate_statuses(summary, resolved_paths)
+    os.makedirs(gate_status_dir, exist_ok=True)
+
+    gate_status_files = {}
+    for status in gate_statuses:
+        status_path = gate_status_dir / f"{status['id']}.json"
+        payload = {
+            "id": status["id"],
+            "label": status["label"],
+            "passed": status["passed"],
+            "details": status["details"],
+            "pass_criteria": status["pass_criteria"],
+            "report_path": status["report_path"],
+            "generated_at": summary["generated_at"],
+        }
+        with status_path.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        gate_status_files[status["id"]] = str(status_path)
+        status["status_report"] = str(status_path)
+
     summary["gate_statuses"] = gate_statuses
     summary["dashboard"] = {"path": str(dashboard_path)}
+    summary["gate_status_files"] = gate_status_files
 
     os.makedirs(output_path.parent, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as f:
@@ -215,6 +241,7 @@ def main() -> None:
     failed = ", ".join(status["id"] for status in gate_statuses if not status["passed"]) or "(none)"
     print("Aggregator wrote consolidated report to", output_path)
     print("Dashboard available at", dashboard_path)
+    print("Gate status JSON directory:", gate_status_dir)
     print("Available reports:", available)
     print("Missing reports:", missing)
     print("Passed gates:", passed)

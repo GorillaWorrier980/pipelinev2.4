@@ -84,6 +84,7 @@ The gates are lightweight Python scripts that honor environment variables so you
 | Aggregator | `REPORT_GE`, `REPORT_PRESIDIO`, `REPORT_SHAP`, `REPORT_ART`, `REPORT_RAGAS` | defaults to corresponding `reports/**` paths | Allows pointing the aggregator at custom report locations if they were generated elsewhere. |
 |  | `AGGREGATOR_OUTPUT` | `REPORT_SUMMARY.json` | Where the consolidated JSON snapshot is written. |
 |  | `DASHBOARD_OUTPUT` | `reports/dashboard/index.html` | Destination for the HTML pass/fail dashboard. |
+|  | `DASHBOARD_GATES_DIR` | `reports/dashboard/gates` | Folder that receives per-gate status JSON summaries. |
 
 All environment variables can be set when calling `python run_pipeline.py` (e.g. `GE_INPUT=/tmp/data.csv python run_pipeline.py`) or passed through `docker compose` via the corresponding service definitions.
 
@@ -104,6 +105,7 @@ All containers accept environment variables (see `docker-compose.yml`) so you ca
 * `reports/shap/global.json` – Mean absolute SHAP contributions
 * `reports/art/robustness.json` – Clean vs. adversarial accuracies
 * `reports/ragas/*.json[l]` – Retrieval support metrics per question and summary
+* `reports/dashboard/gates/*.json` – Pass/fail snapshots for each gate (mirrors dashboard rows)
 * `reports/dashboard/index.html` – Human-friendly overview of gate status and pass criteria
 * `REPORT_SUMMARY.json` – Aggregated snapshot across all gates, including structured pass/fail metadata
 
@@ -118,6 +120,14 @@ The dashboard summarizes each gate using the following success checks:
 | SHAP | Mean absolute importance scores sum to 1.0 (±0.01). |
 | ART | FGSM and PGD adversarial accuracies remain ≥ 0.70. |
 | RAGAS | Mean support score meets or exceeds 0.60. |
+
+### RAGAS scoring without an external LLM
+
+The bundled RAGAS script keeps the evaluation entirely offline. Instead of calling a hosted "LLM as a Judge" endpoint, it
+computes lexical support scores by checking whether each gold answer string appears in the retrieved context snippets. This
+deterministic heuristic mimics the spirit of a grounding check without network calls, which makes the demo safe to run in CI
+or air-gapped environments. Supplying a custom RAGAS configuration or model-backed judge is still possible—override the entry
+point with your own implementation if you need true LLM-based scoring.
 
 ## Continuous Integration
 
