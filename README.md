@@ -58,6 +58,35 @@ Each gate consumes a well-defined slice of the sample artifacts so you can trace
 | ART | `artifacts/models/classifier/metadata.json`, `artifacts/models/classifier/mnist_cnn_weights.json`, `artifacts/data/models/mnist_samples.json`, `configs/art/config.json` | Uses the same model artifacts plus FGSM/PGD settings to score clean accuracy over the reference samples, generate adversarial perturbations per the config, and measure accuracy drops under each attack. |
 | RAGAS | `artifacts/data/rag_chunks/chunks.jsonl`, `artifacts/data/qa/qa_set.jsonl` | Loads all knowledge chunks and QA pairs, aligns each question with its referenced chunk IDs, checks whether gold answers appear in the retrieved context text, and aggregates per-question support metrics into a global summary. |
 
+### Configuration reference
+
+The gates are lightweight Python scripts that honor environment variables so you can redirect inputs, tweak parameters, and change report locations without editing code. The following table lists the relevant settings and their defaults:
+
+| Gate | Environment variables | Default | Purpose |
+| --- | --- | --- | --- |
+| Great Expectations | `GE_INPUT` | `artifacts/data/tabular/tabular_enron.csv` | Path to the CSV file that will be validated. |
+|  | `GE_OUTPUT` | `reports/ge/summary.json` | Where the expectation summary is written. |
+| Presidio | `PRESIDIO_INPUT` | `artifacts/data/text/enron_text.jsonl` | JSONL source of emails to scan (subject + body). |
+|  | `PRESIDIO_OUTPUT` | `reports/presidio/redaction_summary.json` | Destination for the entity counts and anonymized examples. |
+| SHAP | `SHAP_METADATA` | `artifacts/models/classifier/metadata.json` | Optional override describing the model (name, architecture, class count). |
+|  | `SHAP_WEIGHTS` | `artifacts/models/classifier/mnist_cnn_weights.json` | Linear weights/biases consumed when computing importance scores. |
+|  | `SHAP_REFERENCE` | `artifacts/data/models/mnist_samples.json` | Reference feature vectors and labels that anchor SHAP calculations. |
+|  | `SHAP_OUTPUT` | `reports/shap/global.json` | Location for the global mean absolute SHAP report. |
+| ART | `ART_METADATA` | `artifacts/models/classifier/metadata.json` | Model description used in the robustness report metadata. |
+|  | `ART_WEIGHTS` | `artifacts/models/classifier/mnist_cnn_weights.json` | Weights and biases for the classifier under attack. |
+|  | `ART_REFERENCE` | `artifacts/data/models/mnist_samples.json` | Clean evaluation samples that attacks are generated from. |
+|  | `ART_CONFIG` | `configs/art/config.json` | JSON payload defining FGSM/PGD parameters (`epsilon`, `epsilon_step`, `max_iter`). |
+|  | `ART_OUTPUT` | `reports/art/robustness.json` | Path for the robustness summary (clean/adv accuracy + drops). |
+| RAGAS | `RAGAS_CHUNKS` | `artifacts/data/rag_chunks/chunks.jsonl` | Knowledge base fragments referenced by QA items. |
+|  | `RAGAS_QA` | `artifacts/data/qa/qa_set.jsonl` | Question/answer pairs with chunk identifiers. |
+|  | `RAGAS_DETAIL` | `reports/ragas/per_question.jsonl` | Detailed per-question support output. |
+|  | `RAGAS_SUMMARY` | `reports/ragas/summary.json` | Aggregate retrieval support statistics. |
+| Aggregator | `REPORT_GE`, `REPORT_PRESIDIO`, `REPORT_SHAP`, `REPORT_ART`, `REPORT_RAGAS` | defaults to corresponding `reports/**` paths | Allows pointing the aggregator at custom report locations if they were generated elsewhere. |
+|  | `AGGREGATOR_OUTPUT` | `REPORT_SUMMARY.json` | Where the consolidated JSON snapshot is written. |
+|  | `DASHBOARD_OUTPUT` | `reports/dashboard/index.html` | Destination for the HTML pass/fail dashboard. |
+
+All environment variables can be set when calling `python run_pipeline.py` (e.g. `GE_INPUT=/tmp/data.csv python run_pipeline.py`) or passed through `docker compose` via the corresponding service definitions.
+
 ### Individual Containers
 
 Each service can be run independently. Example for Great Expectations:
