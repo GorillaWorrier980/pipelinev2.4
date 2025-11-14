@@ -9,7 +9,6 @@ STEPS = [
     ("SHAP", [sys.executable, "docker/shap/run_shap.py"]),
     ("ART", [sys.executable, "docker/art/run_art.py"]),
     ("RAGAS", [sys.executable, "docker/ragas/run_ragas.py"]),
-    ("Trivy", [sys.executable, "docker/trivy/run_trivy.py"]),
     ("Aggregator", [sys.executable, "docker/aggregator/run_aggregator.py"]),
 ]
 

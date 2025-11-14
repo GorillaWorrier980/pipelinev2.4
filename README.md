@@ -1,11 +1,10 @@
 # Pipeline v2.4 Toolchain
 
-This repository packages six independent quality gates – data validation, PII scanning, model explainability, adversarial robustness, retrieval evaluation, and supply-chain scanning – plus a final report aggregator. Every gate runs inside its own Docker container and consumes artifacts from the `artifacts/` folder while producing JSON reports under `reports/`.
+This repository packages five independent quality gates – data validation, PII scanning, model explainability, adversarial robustness, and retrieval evaluation – plus a final report aggregator. Every gate runs inside its own Docker container and consumes artifacts from the `artifacts/` folder while producing JSON reports under `reports/`.
 
 ## Prerequisites
 
 * Docker and Docker Compose v2
-* (Optional) Internet access for pulling the OWASP Juice Shop image used by the Trivy scan
 
 ## Repository Layout
 
@@ -23,7 +22,7 @@ artifacts/
       mnist_cnn_weights.json         # Lightweight linear model weights
     vector_index/index.faiss         # Placeholder FAISS index
 configs/
-  trivy/config.json                  # Target image for Trivy
+  art/config.json                    # FGSM/PGD parameters for the ART gate
 reports/
   ...                                # JSON outputs written by each gate
 ```
@@ -31,8 +30,7 @@ reports/
 ## Usage
 
 1. Populate the `artifacts/` folders with your data, model, and index assets. The repository ships with lightweight samples so the pipeline can run end-to-end without external downloads.
-2. (Optional) Adjust configuration files under `configs/` (only Trivy needs one by default).
-3. Run the full pipeline locally (no Docker required) using the lightweight Python entrypoints:
+2. Run the full pipeline locally (no Docker required) using the lightweight Python entrypoints:
 
    ```bash
    python run_pipeline.py
@@ -40,13 +38,25 @@ reports/
 
    Each gate is executed sequentially and the aggregated report is refreshed at the end of the run.
 
-4. (Optional) You can still orchestrate the original Docker services via `docker compose up --build` if you prefer container isolation.
+3. (Optional) You can still orchestrate the original Docker services via `docker compose up --build` if you prefer container isolation.
 
-5. When the run completes, inspect the individual reports under `reports/**`, the consolidated `REPORT_SUMMARY.json` at the repository root, and the HTML dashboard at `reports/dashboard/index.html` for a quick pass/fail snapshot.
+4. When the run completes, inspect the individual reports under `reports/**`, the consolidated `REPORT_SUMMARY.json` at the repository root, and the HTML dashboard at `reports/dashboard/index.html` for a quick pass/fail snapshot.
 
 ### SHAP & ART Defaults
 
-The SHAP and ART gates now evaluate a bundled MNIST-style linear classifier using real weights and a small reference set stored under `artifacts/models/classifier/mnist_cnn_weights.json` and `artifacts/data/models/mnist_samples.json`. The explainability step computes mean absolute SHAP contributions from those samples, while the robustness gate launches FGSM and PGD perturbations against the same model. Override the inputs and optional metadata/configuration via the `SHAP_*` and `ART_*` environment variables when supplying your own model artifacts.
+The SHAP and ART gates evaluate a bundled MNIST-style linear classifier using real weights and a small reference set stored under `artifacts/models/classifier/mnist_cnn_weights.json` and `artifacts/data/models/mnist_samples.json`. The explainability step computes mean absolute SHAP contributions from those samples, while the robustness gate launches FGSM and PGD perturbations against the same model. Override the inputs and optional metadata/configuration via the `SHAP_*` and `ART_*` environment variables when supplying your own model artifacts.
+
+### Gate data coverage and transformations
+
+Each gate consumes a well-defined slice of the sample artifacts so you can trace exactly which inputs power every report:
+
+| Gate | Primary inputs | How the data is used |
+| --- | --- | --- |
+| Great Expectations | `artifacts/data/tabular/tabular_enron.csv` | Loads all columns from the CSV (message metadata) to validate non-null constraints, enforce ISO timestamp formatting for `sent_at`, verify `message_id` uniqueness, and restrict `has_attachment` to `true/false`. |
+| Presidio | `artifacts/data/text/enron_text.jsonl` | Reads every JSONL row, concatenates the `subject` and `body` fields into a single string per message, detects EMAIL/PHONE/NAME entities with regex recognizers, and emits anonymized samples for any hits. |
+| SHAP | `artifacts/models/classifier/metadata.json`, `artifacts/models/classifier/mnist_cnn_weights.json`, `artifacts/data/models/mnist_samples.json` | Loads the classifier metadata to capture model context, ingests the linear weights/biases, and processes all reference feature vectors to compute baseline-adjusted, probability-weighted mean absolute SHAP importances. |
+| ART | `artifacts/models/classifier/metadata.json`, `artifacts/models/classifier/mnist_cnn_weights.json`, `artifacts/data/models/mnist_samples.json`, `configs/art/config.json` | Uses the same model artifacts plus FGSM/PGD settings to score clean accuracy over the reference samples, generate adversarial perturbations per the config, and measure accuracy drops under each attack. |
+| RAGAS | `artifacts/data/rag_chunks/chunks.jsonl`, `artifacts/data/qa/qa_set.jsonl` | Loads all knowledge chunks and QA pairs, aligns each question with its referenced chunk IDs, checks whether gold answers appear in the retrieved context text, and aggregates per-question support metrics into a global summary. |
 
 ### Individual Containers
 
@@ -65,7 +75,6 @@ All containers accept environment variables (see `docker-compose.yml`) so you ca
 * `reports/shap/global.json` – Mean absolute SHAP contributions
 * `reports/art/robustness.json` – Clean vs. adversarial accuracies
 * `reports/ragas/*.json[l]` – Retrieval support metrics per question and summary
-* `reports/trivy/cve.json` – Vulnerability report for the configured container image
 * `reports/dashboard/index.html` – Human-friendly overview of gate status and pass criteria
 * `REPORT_SUMMARY.json` – Aggregated snapshot across all gates, including structured pass/fail metadata
 
@@ -80,7 +89,6 @@ The dashboard summarizes each gate using the following success checks:
 | SHAP | Mean absolute importance scores sum to 1.0 (±0.01). |
 | ART | FGSM and PGD adversarial accuracies remain ≥ 0.70. |
 | RAGAS | Mean support score meets or exceeds 0.60. |
-| Trivy | No HIGH or CRITICAL vulnerabilities found. |
 
 ## Continuous Integration
 

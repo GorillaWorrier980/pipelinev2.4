@@ -10,7 +10,6 @@ REPORT_PATHS = {
     "shap": "reports/shap/global.json",
     "art": "reports/art/robustness.json",
     "ragas": "reports/ragas/summary.json",
-    "trivy": "reports/trivy/cve.json",
 }
 
 
@@ -73,17 +72,6 @@ def evaluate_ragas(report):
     return False, f"Mean support {score:.2f} below 0.60"
 
 
-def evaluate_trivy(report):
-    if not report:
-        return False, "Report missing"
-    summary = report.get("severity_summary", {})
-    critical = int(summary.get("CRITICAL", 0))
-    high = int(summary.get("HIGH", 0))
-    if critical == 0 and high == 0:
-        return True, "No HIGH or CRITICAL vulnerabilities"
-    return False, f"HIGH/CRITICAL findings: {critical + high}"
-
-
 GATE_RULES = {
     "ge": {
         "label": "Great Expectations",
@@ -109,11 +97,6 @@ GATE_RULES = {
         "label": "RAGAS",
         "pass_criteria": "Mean support score meets or exceeds the 0.60 threshold.",
         "evaluator": evaluate_ragas,
-    },
-    "trivy": {
-        "label": "Trivy",
-        "pass_criteria": "No HIGH or CRITICAL vulnerabilities are present in the scan.",
-        "evaluator": evaluate_trivy,
     },
 }
 

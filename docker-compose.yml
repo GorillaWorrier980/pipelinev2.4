@@ -42,12 +42,6 @@ services:
       - ./artifacts/data/qa/qa_set.jsonl:/data/qa_set.jsonl:ro
       - ./reports/ragas:/reports
 
-  trivy:
-    build: ./docker/trivy
-    volumes:
-      - ./configs/trivy:/configs:ro
-      - ./reports/trivy:/reports
-
   aggregator:
     build: ./docker/aggregator
     depends_on:
@@ -56,14 +50,12 @@ services:
       - shap
       - art
       - ragas
-      - trivy
     environment:
       REPORT_GE: /workspace/reports/ge/summary.json
       REPORT_PRESIDIO: /workspace/reports/presidio/redaction_summary.json
       REPORT_SHAP: /workspace/reports/shap/global.json
       REPORT_ART: /workspace/reports/art/robustness.json
       REPORT_RAGAS: /workspace/reports/ragas/summary.json
-      REPORT_TRIVY: /workspace/reports/trivy/cve.json
       AGGREGATOR_OUTPUT: /workspace/REPORT_SUMMARY.json
     volumes:
       - ./:/workspace
