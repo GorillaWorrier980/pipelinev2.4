@@ -1,0 +1,6 @@
+{
+  "epsilon": 0.1,
+  "epsilon_step": 0.04,
+  "max_iter": 5
+}
+

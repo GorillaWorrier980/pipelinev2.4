@@ -16,9 +16,11 @@ artifacts/
     text/enron_text.jsonl            # Presidio input sample
     rag_chunks/chunks.jsonl          # RAGAS knowledge base sample
     qa/qa_set.jsonl                  # RAGAS question/answer sample
+    models/mnist_samples.json        # Reference inputs for SHAP/ART gates
   models/
     classifier/
-      mnist_cnn.pt                   # Placeholder weights used by SHAP/ART
+      metadata.json                  # Model description shared by SHAP/ART
+      mnist_cnn_weights.json         # Lightweight linear model weights
     vector_index/index.faiss         # Placeholder FAISS index
 configs/
   trivy/config.json                  # Target image for Trivy
@@ -44,7 +46,7 @@ reports/
 
 ### SHAP & ART Defaults
 
-The SHAP and ART gates synthesise explanation and robustness metrics for a lightweight MNIST-style classifier bundled at `artifacts/models/classifier/mnist_cnn.pt`. If you provide your own model, you can override the input paths and optional metadata/configuration via the `SHAP_*` and `ART_*` environment variables without needing additional JSON files.
+The SHAP and ART gates now evaluate a bundled MNIST-style linear classifier using real weights and a small reference set stored under `artifacts/models/classifier/mnist_cnn_weights.json` and `artifacts/data/models/mnist_samples.json`. The explainability step computes mean absolute SHAP contributions from those samples, while the robustness gate launches FGSM and PGD perturbations against the same model. Override the inputs and optional metadata/configuration via the `SHAP_*` and `ART_*` environment variables when supplying your own model artifacts.
 
 ### Individual Containers
 
@@ -91,7 +93,7 @@ without executing the pipeline locally.
 
 * Update expectation logic in `docker/ge/run_expectations.py` for domain-specific validations.
 * Customize Presidio recognizers or anonymizers inside `docker/presidio/run_presidio.py`.
-* Swap in a trained model by replacing `artifacts/models/classifier/mnist_cnn.pt`. The SHAP and ART gates assume a 10-class MNIST-style classifier by default, but you can override paths and settings via environment variables (see `docker/shap/run_shap.py` and `docker/art/run_art.py`).
+* Swap in a trained model by updating the classifier metadata, weights, and sample set under `artifacts/models/classifier/` and `artifacts/data/models/`. The SHAP and ART gates assume a 10-class MNIST-style classifier by default, but you can override paths and settings via environment variables (see `docker/shap/run_shap.py` and `docker/art/run_art.py`).
 * Provide a real FAISS index and larger QA/chunk datasets to align with your RAG deployment.
 
 ## License
