@@ -3,12 +3,33 @@ import os
 import random
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
-def load_metadata(path: Path) -> Dict[str, object]:
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+DEFAULT_METADATA: Dict[str, object] = {
+    "name": "mnist_cnn",
+    "dataset": "mnist",
+    "architecture": "mnist_cnn",
+    "num_classes": 10,
+    "input_shape": [1, 28, 28],
+}
+
+
+def load_metadata(path: Optional[Path]) -> Dict[str, object]:
+    metadata = DEFAULT_METADATA.copy()
+    if not path:
+        return metadata
+
+    try:
+        if path.exists():
+            with path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            if isinstance(payload, dict):
+                metadata.update(payload)
+    except (json.JSONDecodeError, OSError):
+        # Fall back to defaults if the file is unreadable.
+        pass
+    return metadata
 
 
 def generate_importances(num_classes: int, seed: int) -> List[float]:
@@ -20,10 +41,12 @@ def generate_importances(num_classes: int, seed: int) -> List[float]:
 
 def main() -> None:
     model_path = Path(os.environ.get("SHAP_MODEL", "artifacts/models/classifier/mnist_cnn.pt"))
-    metadata_path = Path(os.environ.get("SHAP_METADATA", "artifacts/models/classifier/metadata.json"))
+    metadata_env = os.environ.get("SHAP_METADATA")
+    metadata_path = Path(metadata_env) if metadata_env else Path("artifacts/models/classifier/metadata.json")
     output_path = Path(os.environ.get("SHAP_OUTPUT", "reports/shap/global.json"))
 
-    metadata = load_metadata(metadata_path)
+    metadata_source = metadata_path if metadata_path.exists() else None
+    metadata = load_metadata(metadata_path if metadata_path.exists() else None)
     num_classes = int(metadata.get("num_classes", 10))
     architecture = metadata.get("architecture", "model")
 
@@ -36,6 +59,7 @@ def main() -> None:
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "input_model": str(model_path),
         "metadata": metadata,
+        "metadata_source": str(metadata_source) if metadata_source else "defaults",
         "sample_size": num_classes,  # proxy metric for demonstration purposes
         "mean_abs_shap": mean_abs_shap,
     }

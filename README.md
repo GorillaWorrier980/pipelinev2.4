@@ -16,14 +16,11 @@ artifacts/
     text/enron_text.jsonl            # Presidio input sample
     rag_chunks/chunks.jsonl          # RAGAS knowledge base sample
     qa/qa_set.jsonl                  # RAGAS question/answer sample
-    models/                          # Generated automatically if absent
   models/
     classifier/
-      metadata.json                  # Model metadata consumed by SHAP/ART
-      mnist_cnn.pt                   # Placeholder weights (auto-generated if empty)
+      mnist_cnn.pt                   # Placeholder weights used by SHAP/ART
     vector_index/index.faiss         # Placeholder FAISS index
 configs/
-  art/config.json                    # ART attack settings
   trivy/config.json                  # Target image for Trivy
 reports/
   ...                                # JSON outputs written by each gate
@@ -32,7 +29,7 @@ reports/
 ## Usage
 
 1. Populate the `artifacts/` folders with your data, model, and index assets. The repository ships with lightweight samples so the pipeline can run end-to-end without external downloads.
-2. (Optional) Adjust configuration files under `configs/`.
+2. (Optional) Adjust configuration files under `configs/` (only Trivy needs one by default).
 3. Run the full pipeline locally (no Docker required) using the lightweight Python entrypoints:
 
    ```bash
@@ -44,6 +41,10 @@ reports/
 4. (Optional) You can still orchestrate the original Docker services via `docker compose up --build` if you prefer container isolation.
 
 5. When the run completes, inspect the individual reports under `reports/**`, the consolidated `REPORT_SUMMARY.json` at the repository root, and the HTML dashboard at `reports/dashboard/index.html` for a quick pass/fail snapshot.
+
+### SHAP & ART Defaults
+
+The SHAP and ART gates synthesise explanation and robustness metrics for a lightweight MNIST-style classifier bundled at `artifacts/models/classifier/mnist_cnn.pt`. If you provide your own model, you can override the input paths and optional metadata/configuration via the `SHAP_*` and `ART_*` environment variables without needing additional JSON files.
 
 ### Individual Containers
 
@@ -90,7 +91,7 @@ without executing the pipeline locally.
 
 * Update expectation logic in `docker/ge/run_expectations.py` for domain-specific validations.
 * Customize Presidio recognizers or anonymizers inside `docker/presidio/run_presidio.py`.
-* Swap in a trained model by replacing `artifacts/models/classifier/mnist_cnn.pt` and updating `metadata.json`.
+* Swap in a trained model by replacing `artifacts/models/classifier/mnist_cnn.pt`. The SHAP and ART gates assume a 10-class MNIST-style classifier by default, but you can override paths and settings via environment variables (see `docker/shap/run_shap.py` and `docker/art/run_art.py`).
 * Provide a real FAISS index and larger QA/chunk datasets to align with your RAG deployment.
 
 ## License

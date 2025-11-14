@@ -1,7 +1,0 @@
-{
-  "architecture": "mnist_cnn",
-  "input_shape": [1, 28, 28],
-  "num_classes": 10,
-  "sample_data": "artifacts/data/models/mnist_samples.npz",
-  "description": "Small CNN trained on MNIST for demonstration."
-}

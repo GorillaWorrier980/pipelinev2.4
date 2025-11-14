@@ -16,28 +16,18 @@ services:
     build: ./docker/shap
     environment:
       SHAP_MODEL: /artifacts/mnist_cnn.pt
-      SHAP_METADATA: /artifacts/metadata.json
       SHAP_OUTPUT: /reports/global.json
-      SHAP_SAMPLE_DATA: /samples/mnist_samples.npz
     volumes:
       - ./artifacts/models/classifier/mnist_cnn.pt:/artifacts/mnist_cnn.pt
-      - ./artifacts/models/classifier/metadata.json:/artifacts/metadata.json:ro
-      - ./artifacts/data/models:/samples
       - ./reports/shap:/reports
 
   art:
     build: ./docker/art
     environment:
       ART_MODEL: /artifacts/mnist_cnn.pt
-      ART_METADATA: /artifacts/metadata.json
-      ART_CONFIG: /configs/config.json
       ART_OUTPUT: /reports/robustness.json
-      ART_SAMPLE_DATA: /samples/mnist_samples.npz
     volumes:
       - ./artifacts/models/classifier/mnist_cnn.pt:/artifacts/mnist_cnn.pt
-      - ./artifacts/models/classifier/metadata.json:/artifacts/metadata.json:ro
-      - ./artifacts/data/models:/samples
-      - ./configs/art/config.json:/configs/config.json:ro
       - ./reports/art:/reports
 
   ragas:
