@@ -60,6 +60,55 @@ Each gate consumes a well-defined slice of the sample artifacts so you can trace
 
 The following reference snippets show exactly how the bundled datasets are shaped. Replace them with your own assets while keeping the same structure so the gates continue to parse successfully.
 
+### Detailed dataset contents and detection logic
+
+#### Great Expectations (Data validation)
+* **Dataset content**
+  * File: `artifacts/data/tabular/tabular_enron.csv`.
+  * Columns: `message_id` (string), `from` (email), `to` (email), `subject` (short text), `sent_at` (timestamp as `YYYY-MM-DD HH:MM:SS`), `has_attachment` (`true`/`false`).
+  * Records: three mock Enron-style messages that include IDs `ENR-001` to `ENR-003` and a mix of attachment flags.
+* **Detection method**
+  * Loads the CSV with pandas.
+  * Enforces non-null checks on every column, `message_id` uniqueness, ISO timestamp parsing on `sent_at`, and Boolean domain checks on `has_attachment`.
+  * Fails the gate if any expectation is violated.
+
+#### Presidio (PII scanning)
+* **Dataset content**
+  * File: `artifacts/data/text/enron_text.jsonl`.
+  * Each JSON line holds `message_id`, `subject`, and `body`; the first row embeds a U.S. phone number to guarantee at least one hit.
+* **Detection method**
+  * Concatenates `subject` + `body` for each record.
+  * Runs regex-based recognizers for EMAIL, PHONE, and NAME tokens.
+  * Emits a JSON report with hit counts plus up to three anonymized snippets per entity type; gate passes if at least one entity is detected.
+
+#### SHAP (Model explainability)
+* **Dataset content**
+  * Files: `artifacts/models/classifier/metadata.json`, `artifacts/models/classifier/mnist_cnn_weights.json`, and `artifacts/data/models/mnist_samples.json`.
+  * Metadata exposes the classifier name, architecture, class count, and `1×4×4` input dimensions.
+  * Weight file stores 10 linear weight rows with 16 coefficients each plus per-class biases.
+  * Samples JSON contains flattened feature vectors (`features`), integer labels, and optional probability priors.
+* **Detection method**
+  * Reconstructs logits from the linear weights and every reference feature vector.
+  * Uses the mean of the sample set as the SHAP baseline and computes mean absolute contributions per class, normalized via softmax.
+  * Validates that normalized importances sum to 1 (±0.01) and emits `reports/shap/global.json` with class-level scores.
+
+#### ART (Adversarial robustness)
+* **Dataset content**
+  * Shares the metadata, weights, and sample set listed above for SHAP, plus FGSM/PGD parameters from `configs/art/config.json` (`epsilon`, `epsilon_step`, `max_iter`).
+* **Detection method**
+  * Evaluates clean accuracy of the reference samples using the bundled classifier.
+  * Generates FGSM perturbations using the configured epsilon, and PGD perturbations using epsilon/step/iteration settings.
+  * Computes adversarial accuracies and drops; gate passes when FGSM and PGD accuracies are both ≥ 0.70.
+
+#### RAGAS (Retrieval assessment)
+* **Dataset content**
+  * Knowledge base file: `artifacts/data/rag_chunks/chunks.jsonl` with `chunk_id` and `text` describing Enron’s HQ and bankruptcy timeline.
+  * QA file: `artifacts/data/qa/qa_set.jsonl` with `question_id`, `question`, `answers` (list of gold strings), and `contexts` (chunk IDs that should answer the question).
+* **Detection method**
+  * Aligns each QA pair with its referenced chunk text.
+  * Applies a lexical “LLM-as-a-judge” proxy by searching for every gold answer string within the concatenated context text.
+  * Writes per-question support/coverage metrics and a summary average; gate passes if the average support score is ≥ 0.60.
+
 #### Great Expectations sample CSV
 
 ```csv
