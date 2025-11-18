@@ -46,7 +46,7 @@ reports/
 
 The SHAP and ART gates evaluate a bundled MNIST-style linear classifier using real weights and a small reference set stored under `artifacts/models/classifier/mnist_cnn_weights.json` and `artifacts/data/models/mnist_samples.json`. The explainability step computes mean absolute SHAP contributions from those samples, while the robustness gate launches FGSM and PGD perturbations against the same model. Override the inputs and optional metadata/configuration via the `SHAP_*` and `ART_*` environment variables when supplying your own model artifacts.
 
-### Gate data coverage and transformations
+### Gate data coverage, formats, and transformations
 
 Each gate consumes a well-defined slice of the sample artifacts so you can trace exactly which inputs power every report:
 
@@ -57,6 +57,103 @@ Each gate consumes a well-defined slice of the sample artifacts so you can trace
 | SHAP | `artifacts/models/classifier/metadata.json`, `artifacts/models/classifier/mnist_cnn_weights.json`, `artifacts/data/models/mnist_samples.json` | Loads the classifier metadata to capture model context, ingests the linear weights/biases, and processes all reference feature vectors to compute baseline-adjusted, probability-weighted mean absolute SHAP importances. |
 | ART | `artifacts/models/classifier/metadata.json`, `artifacts/models/classifier/mnist_cnn_weights.json`, `artifacts/data/models/mnist_samples.json`, `configs/art/config.json` | Uses the same model artifacts plus FGSM/PGD settings to score clean accuracy over the reference samples, generate adversarial perturbations per the config, and measure accuracy drops under each attack. |
 | RAGAS | `artifacts/data/rag_chunks/chunks.jsonl`, `artifacts/data/qa/qa_set.jsonl` | Loads all knowledge chunks and QA pairs, aligns each question with its referenced chunk IDs, checks whether gold answers appear in the retrieved context text, and aggregates per-question support metrics into a global summary. |
+
+The following reference snippets show exactly how the bundled datasets are shaped. Replace them with your own assets while keeping the same structure so the gates continue to parse successfully.
+
+#### Great Expectations sample CSV
+
+```csv
+message_id,from,to,subject,sent_at,has_attachment
+ENR-001,alice@example.com,bob@example.com,Quarterly Update,2001-06-18 09:12:00,false
+ENR-002,carol@example.com,finance@example.com,Meeting Follow-up,2001-06-19 14:35:48,true
+ENR-003,dave@example.com,legal@example.com,Contract Review,2001-06-21 08:05:11,false
+```
+
+#### Presidio sample JSONL
+
+Each line is an object with a `message_id` plus `subject`/`body` strings. The scanner concatenates the two text fields before running recognizers.
+
+```json
+{"message_id": "ENR-001", "subject": "Quarterly Update", "body": "Call me at 713-555-0102 when you land."}
+{"message_id": "ENR-002", "subject": "Meeting Follow-up", "body": "Thanks for the quick recap."}
+{"message_id": "ENR-003", "subject": "Contract Review", "body": "Please confirm the redlines."}
+```
+
+#### SHAP & ART model metadata
+
+`artifacts/models/classifier/metadata.json` exposes classifier details consumed by both gates.
+
+```json
+{
+  "name": "mnist_demo",
+  "architecture": "linear_mnist_demo",
+  "input_shape": [1, 4, 4],
+  "num_classes": 10,
+  "description": "Lightweight linear classifier for demo purposes"
+}
+```
+
+#### SHAP & ART weight matrix
+
+`artifacts/models/classifier/mnist_cnn_weights.json` stores per-class coefficients and biases for the synthetic classifier.
+
+```json
+{
+  "weights": [[0.12, -0.04, ... 16 total values per class ...], ... 10 classes ...],
+  "biases": [0.01, -0.07, 0.05, ...]
+}
+```
+
+#### SHAP & ART reference samples
+
+`artifacts/data/models/mnist_samples.json` contains the flattened feature vectors and optional class probabilities used as baseline inputs.
+
+```json
+{
+  "features": [[0.0, 0.1, 0.2, 0.0, ... 16 values ...], [0.05, 0.0, ...]],
+  "labels": [7, 2, 1, 0, ...],
+  "probabilities": [[0.01, 0.03, ...], ...]
+}
+```
+
+#### ART attack configuration
+
+`configs/art/config.json` defines the FGSM and PGD hyperparameters applied to the reference samples.
+
+```json
+{
+  "fgsm": {"epsilon": 0.2},
+  "pgd": {"epsilon": 0.3, "epsilon_step": 0.05, "max_iter": 10}
+}
+```
+
+#### RAGAS knowledge base fragments
+
+`artifacts/data/rag_chunks/chunks.jsonl` holds retrieval passages keyed by `chunk_id`.
+
+```json
+{"chunk_id": "chunk-001", "text": "Enron Corporation was an American energy company based in Houston."}
+{"chunk_id": "chunk-002", "text": "The company filed for bankruptcy in December 2001 after an accounting scandal."}
+```
+
+#### RAGAS QA pairs
+
+`artifacts/data/qa/qa_set.jsonl` links questions to chunk identifiers and gold answers used for support scoring.
+
+```json
+{
+  "question_id": "q-001",
+  "question": "Where was Enron headquartered?",
+  "answers": ["Houston"],
+  "contexts": ["chunk-001"]
+}
+{
+  "question_id": "q-002",
+  "question": "When did Enron declare bankruptcy?",
+  "answers": ["December 2001"],
+  "contexts": ["chunk-002"]
+}
+```
 
 ### Configuration reference
 
