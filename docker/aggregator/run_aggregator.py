@@ -28,10 +28,13 @@ def evaluate_ge(report):
 def evaluate_presidio(report):
     if not report:
         return False, "Report missing"
-    total_hits = sum(report.get("entity_counts", {}).values())
+    if "total_entities" in report:
+        total_hits = report.get("total_entities", 0)
+    else:
+        total_hits = sum(report.get("entity_counts", {}).values())
     if total_hits > 0:
         return True, f"Detected {total_hits} entities"
-    return False, "No PII entities detected"
+    return False, "Detected 0 entities"
 
 
 def evaluate_shap(report):

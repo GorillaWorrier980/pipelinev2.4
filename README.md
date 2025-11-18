@@ -79,7 +79,7 @@ The following reference snippets show exactly how the bundled datasets are shape
 * **Detection method**
   * Concatenates `subject` + `body` for each record.
   * Runs regex-based recognizers for EMAIL, PHONE, and NAME tokens.
-  * Emits a JSON report with hit counts plus up to three anonymized snippets per entity type; gate passes if at least one entity is detected.
+  * Emits a JSON report with per-entity hit counts, a `total_entities` aggregate so the dashboard can display how many privacy events were found, and up to three anonymized snippets per entity type; gate passes if at least one entity is detected.
 
 #### SHAP (Model explainability)
 * **Dataset content**
@@ -247,7 +247,7 @@ All containers accept environment variables (see `docker-compose.yml`) so you ca
 ## Outputs
 
 * `reports/ge/summary.json` – Great Expectations validation statistics
-* `reports/presidio/redaction_summary.json` – Presidio entity counts and examples
+* `reports/presidio/redaction_summary.json` – Presidio entity counts, `total_entities`, and redaction examples
 * `reports/shap/global.json` – Mean absolute SHAP contributions
 * `reports/art/robustness.json` – Clean vs. adversarial accuracies
 * `reports/ragas/*.json[l]` – Retrieval support metrics per question and summary

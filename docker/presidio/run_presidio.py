@@ -58,10 +58,12 @@ def main() -> None:
                     }
                 )
 
+    total_entities = sum(entity_counter.values())
     summary = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "input_path": str(input_path),
         "entity_counts": dict(entity_counter),
+        "total_entities": total_entities,
         "examples": {key: value for key, value in redacted_examples.items()},
     }
 
