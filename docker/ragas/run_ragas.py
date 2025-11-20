@@ -29,6 +29,8 @@ def main() -> None:
 
     per_question_results: List[dict] = []
     support_scores: List[float] = []
+    coverage_scores: List[float] = []
+    context_counts: List[int] = []
 
     for qa in qa_items:
         contexts = qa.get("contexts", [])
@@ -39,6 +41,8 @@ def main() -> None:
             support = max(1.0 if answer in text.lower() else 0.0 for text in context_texts)
         coverage = 1.0 if context_texts else 0.0
         support_scores.append(support)
+        coverage_scores.append(coverage)
+        context_counts.append(len(context_texts))
 
         per_question_results.append(
             {
@@ -56,13 +60,19 @@ def main() -> None:
         for record in per_question_results:
             f.write(json.dumps(record) + "\n")
 
+    mean_support = sum(support_scores) / max(len(support_scores), 1)
+    mean_coverage = sum(coverage_scores) / max(len(coverage_scores), 1)
+    mean_contexts = sum(context_counts) / max(len(context_counts), 1)
+
     summary = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "input_chunks": str(chunk_path),
         "input_qa": str(qa_path),
-        "mean_support": sum(support_scores) / max(len(support_scores), 1),
-        "threshold_passed": sum(support_scores) / max(len(support_scores), 1) >= 0.6,
         "total_questions": len(per_question_results),
+        "mean_support": mean_support,
+        "mean_context_coverage": mean_coverage,
+        "mean_contexts_per_question": mean_contexts,
+        "threshold_passed": mean_support >= 0.6 and mean_coverage >= 0.6,
     }
 
     os.makedirs(output_summary.parent, exist_ok=True)

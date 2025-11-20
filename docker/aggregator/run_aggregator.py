@@ -66,13 +66,30 @@ def evaluate_art(report):
 def evaluate_ragas(report):
     if not report:
         return False, "Report missing"
-    if report.get("threshold_passed"):
-        score = report.get("mean_support", 0.0)
-        return True, f"Mean support {score:.2f} >= 0.60"
-    score = report.get("mean_support")
-    if score is None:
-        return False, "Missing mean support"
-    return False, f"Mean support {score:.2f} below 0.60"
+    mean_support = report.get("mean_support")
+    mean_coverage = report.get("mean_context_coverage")
+    mean_contexts = report.get("mean_contexts_per_question")
+
+    metrics_missing = [
+        name
+        for name, value in [
+            ("support", mean_support),
+            ("coverage", mean_coverage),
+            ("contexts", mean_contexts),
+        ]
+        if value is None
+    ]
+    if metrics_missing:
+        return False, "Missing metrics: " + ", ".join(metrics_missing)
+
+    passed = (mean_support >= 0.6) and (mean_coverage >= 0.6)
+    detail = (
+        f"Support {mean_support:.2f}, coverage {mean_coverage:.2f}, "
+        f"contexts/question {mean_contexts:.2f}"
+    )
+    if passed:
+        return True, detail + " (support/coverage thresholds met)"
+    return False, detail + " (support or coverage below 0.60)"
 
 
 GATE_RULES = {
@@ -98,7 +115,7 @@ GATE_RULES = {
     },
     "ragas": {
         "label": "RAGAS",
-        "pass_criteria": "Mean support score meets or exceeds the 0.60 threshold.",
+        "pass_criteria": "Both support and context coverage averages must be >= 0.60.",
         "evaluator": evaluate_ragas,
     },
 }

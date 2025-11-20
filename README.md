@@ -56,7 +56,7 @@ Each gate consumes a well-defined slice of the sample artifacts so you can trace
 | Presidio | `artifacts/data/text/enron_text.jsonl` | Reads every JSONL row, concatenates the `subject` and `body` fields into a single string per message, detects EMAIL/PHONE/NAME entities with regex recognizers, and emits anonymized samples for any hits. |
 | SHAP | `artifacts/models/classifier/metadata.json`, `artifacts/models/classifier/mnist_cnn_weights.json`, `artifacts/data/models/mnist_samples.json` | Loads the classifier metadata to capture model context, ingests the linear weights/biases, and processes all reference feature vectors to compute baseline-adjusted, probability-weighted mean absolute SHAP importances. |
 | ART | `artifacts/models/classifier/metadata.json`, `artifacts/models/classifier/mnist_cnn_weights.json`, `artifacts/data/models/mnist_samples.json`, `configs/art/config.json` | Uses the same model artifacts plus FGSM/PGD settings to score clean accuracy over the reference samples, generate adversarial perturbations per the config, and measure accuracy drops under each attack. |
-| RAGAS | `artifacts/data/rag_chunks/chunks.jsonl`, `artifacts/data/qa/qa_set.jsonl` | Loads all knowledge chunks and QA pairs, aligns each question with its referenced chunk IDs, checks whether gold answers appear in the retrieved context text, and aggregates per-question support metrics into a global summary. |
+| RAGAS | `artifacts/data/rag_chunks/chunks.jsonl`, `artifacts/data/qa/qa_set.jsonl` | Loads all knowledge chunks and QA pairs, aligns each question with its referenced chunk IDs, checks whether gold answers appear in the retrieved context text, and summarizes support, coverage, and context count metrics without collapsing them into a single score. |
 
 The following reference snippets show exactly how the bundled datasets are shaped. Replace them with your own assets while keeping the same structure so the gates continue to parse successfully.
 
@@ -107,7 +107,7 @@ The following reference snippets show exactly how the bundled datasets are shape
 * **Detection method**
   * Aligns each QA pair with its referenced chunk text.
   * Applies a lexical “LLM-as-a-judge” proxy by searching for every gold answer string within the concatenated context text.
-  * Writes per-question support/coverage metrics and a summary average; gate passes if the average support score is ≥ 0.60.
+  * Writes per-question support/coverage metrics and separate summary averages for support, context coverage, and contexts-per-question; gate passes if both mean support and mean coverage are ≥ 0.60.
 
 #### Great Expectations sample CSV
 
@@ -265,7 +265,7 @@ The dashboard summarizes each gate using the following success checks:
 | Presidio | At least one PII entity is detected in the sample. |
 | SHAP | Mean absolute importance scores sum to 1.0 (±0.01). |
 | ART | FGSM and PGD adversarial accuracies remain ≥ 0.70. |
-| RAGAS | Mean support score meets or exceeds 0.60. |
+| RAGAS | Mean support **and** mean context coverage scores each meet or exceed 0.60. |
 
 ### RAGAS scoring without an external LLM
 
