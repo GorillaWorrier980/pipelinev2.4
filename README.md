@@ -108,6 +108,10 @@ The following reference snippets show exactly how the bundled datasets are shape
   * Aligns each QA pair with its referenced chunk text.
   * Applies a lexical “LLM-as-a-judge” proxy by searching for every gold answer string within the concatenated context text.
   * Writes per-question support/coverage metrics and separate summary averages for support, context coverage, and contexts-per-question; gate passes if both mean support and mean coverage are ≥ 0.60.
+* **What it measures (quick view)**
+  * **Support**: For each question, whether any referenced chunk text literally contains a gold answer string (1.0 if found, 0.0 if not), then averaged across questions.
+  * **Context coverage**: Whether every chunk ID listed for a question exists and was included in evaluation (1.0 if all present, 0.0 if any missing), then averaged.
+  * **Contexts per question**: The average number of chunks associated with each QA pair to illuminate retrieval breadth; reported but not used for pass/fail.
 
 #### Great Expectations sample CSV
 
