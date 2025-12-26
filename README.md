@@ -298,7 +298,9 @@ Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub A
 The aggregate job uploads `REPORT_SUMMARY.json` and `reports/dashboard/index.html` as artifacts and also renders a Markdown
 table plus a DevOps-style Mermaid diagram (trigger → checkout/setup → data/model/predeploy fan-out → aggregator → reports)
 directly into the job summary so you can see gate outcomes without downloading files. Artifacts remain available if you want
-to inspect the structured JSON or open the dashboard locally.
+to inspect the structured JSON or open the dashboard locally. Look for an artifact named **`pipeline-summary`** (contains
+`REPORT_SUMMARY.json`, the dashboard HTML, and per-gate status JSON), alongside **`data-gates`**, **`shap-gate`**, and
+**`predeploy-gates`** for the raw gate outputs.
 
 ## Extending
 

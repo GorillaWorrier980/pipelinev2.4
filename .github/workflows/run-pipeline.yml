@@ -157,7 +157,11 @@ jobs:
 
           lines += [
               "",
-              f"Dashboard: `{dashboard_path}` (uploaded as artifact below)",
+              f"Dashboard path: `{dashboard_path}`",
+              "", 
+              "**Download artifacts**:",
+              "- `pipeline-summary` (REPORT_SUMMARY.json, dashboard HTML, gate status JSON)",
+              "- `data-gates`, `shap-gate`, `predeploy-gates` (raw gate reports)",
               "",
               "### DevOps Flow (live run)",
           ]
