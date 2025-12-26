@@ -58,7 +58,35 @@ jobs:
           lines += [
               "",
               f"Dashboard: `{dashboard_path}` (uploaded as artifact below)",
+              "",
+              "### DevOps Flow (live run)",
           ]
+
+          # Build a simple Mermaid flow diagram with dynamic gate statuses so the run's
+          # execution path is visible directly in the GitHub Actions summary.
+          diagram = [
+              "```mermaid",
+              "flowchart TD",
+              "  trigger([GitHub Push/PR]) --> job[Run pipeline]",
+          ]
+
+          for idx, gate in enumerate(gates):
+              node = f"gate{idx}"
+              label = gate.get("label", gate.get("id", f"Gate {idx+1}"))
+              badge = "✅" if gate.get("passed") else "❌"
+              diagram.append(f"  job --> {node}[{label} {badge}]")
+
+          agg_badge = "✅" if all(g.get("passed") for g in gates) else "⚠️"
+          diagram += [
+              f"  job --> aggregator[Aggregator {agg_badge}]",
+              "  aggregator --> artifacts[[Reports & Dashboard]]",
+          ]
+
+          for idx, _ in enumerate(gates):
+              diagram.append(f"  gate{idx} --> aggregator")
+
+          diagram.append("```")
+          lines.extend(diagram)
 
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
               fh.write("\n".join(lines) + "\n")
