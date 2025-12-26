@@ -289,8 +289,9 @@ point with your own implementation if you need true LLM-based scoring.
 
 Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub Action, which executes `python run_pipeline.py`
 on Ubuntu and uploads the consolidated `REPORT_SUMMARY.json` as well as the HTML dashboard (`reports/dashboard/index.html`) as
-build artifacts. Download the artifact from the workflow run page to review the structured JSON summary or open the dashboard
-without executing the pipeline locally.
+build artifacts. The workflow also renders a Markdown table from `REPORT_SUMMARY.json` into the GitHub Actions job summary so
+you can see each gate's pass/fail status and details directly on the run page without downloading artifacts. You can still
+download the artifacts to review the structured JSON or open the dashboard locally.
 
 ## Extending
 

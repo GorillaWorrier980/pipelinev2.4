@@ -20,6 +20,52 @@ jobs:
       - name: Execute quality gates pipeline
         run: python run_pipeline.py
 
+      - name: Summarize gate results in job summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path("REPORT_SUMMARY.json")
+          if not summary_path.exists():
+              print("REPORT_SUMMARY.json not found; skipping job summary update.")
+              raise SystemExit(0)
+
+          data = json.loads(summary_path.read_text())
+          gates = data.get("gate_statuses", [])
+          generated = data.get("generated_at", "(unknown time)")
+          dashboard_path = data.get("dashboard", {}).get("path", "reports/dashboard/index.html")
+
+          lines = [
+              "## Quality Gates Results",
+              f"Generated at `{generated}`",
+              "",
+              "| Gate | Status | Details |",
+              "| --- | --- | --- |",
+          ]
+
+          if not gates:
+              lines.append("| (no gates found) | | |")
+          else:
+              for gate in gates:
+                  badge = "✅" if gate.get("passed") else "❌"
+                  label = gate.get("label", gate.get("id", "(unknown)"))
+                  details = gate.get("details", "")
+                  lines.append(f"| {label} | {badge} | {details} |")
+
+          lines += [
+              "",
+              f"Dashboard: `{dashboard_path}` (uploaded as artifact below)",
+          ]
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines) + "\n")
+
+          print("Wrote gate results to GitHub job summary.")
+          PY
+
       - name: Upload aggregated reports
         uses: actions/upload-artifact@v4
         with:
