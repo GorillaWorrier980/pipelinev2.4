@@ -62,29 +62,47 @@ jobs:
               "### DevOps Flow (live run)",
           ]
 
-          # Build a simple Mermaid flow diagram with dynamic gate statuses so the run's
-          # execution path is visible directly in the GitHub Actions summary.
+          # Render a Mermaid flow that mirrors a DevOps-style workflow diagram with
+          # explicit setup, fan-out gates, and aggregation. Each node is colored by
+          # pass/fail so the run topology is visually clear in the Actions summary.
           diagram = [
               "```mermaid",
-              "flowchart TD",
-              "  trigger([GitHub Push/PR]) --> job[Run pipeline]",
+              "flowchart LR",
+              "  classDef pass fill:#d1fae5,stroke:#34d399,color:#065f46;",
+              "  classDef fail fill:#fee2e2,stroke:#f87171,color:#991b1b;",
+              "  classDef neutral fill:#e2e8f0,stroke:#94a3b8,color:#0f172a;",
+              "  trigger([GitHub Push/PR]):::neutral --> prep([Checkout & Setup]):::neutral",
+              "  prep --> runner{{Run Gates}}:::neutral",
           ]
 
+          gate_nodes = []
           for idx, gate in enumerate(gates):
               node = f"gate{idx}"
               label = gate.get("label", gate.get("id", f"Gate {idx+1}"))
               badge = "✅" if gate.get("passed") else "❌"
-              diagram.append(f"  job --> {node}[{label} {badge}]")
+              gate_nodes.append(node)
+              diagram.append(f"  runner --> {node}[{label} {badge}]")
 
-          agg_badge = "✅" if all(g.get("passed") for g in gates) else "⚠️"
+          agg_pass = all(g.get("passed") for g in gates) if gates else False
+          agg_badge = "✅" if agg_pass else "❌"
           diagram += [
-              f"  job --> aggregator[Aggregator {agg_badge}]",
+              f"  runner --> aggregator[Aggregator {agg_badge}]",
               "  aggregator --> artifacts[[Reports & Dashboard]]",
           ]
 
-          for idx, _ in enumerate(gates):
-              diagram.append(f"  gate{idx} --> aggregator")
+          for idx, gate in enumerate(gates):
+              node = f"gate{idx}"
+              diagram.append(f"  {node} --> aggregator")
 
+          for idx, gate in enumerate(gates):
+              node = f"gate{idx}"
+              class_name = "pass" if gate.get("passed") else "fail"
+              diagram.append(f"  class {node} {class_name}")
+
+          agg_class = "pass" if agg_pass else "fail"
+
+          diagram.append(f"  class aggregator {agg_class}")
+          diagram.append("  class trigger,prep,runner,artifacts neutral")
           diagram.append("```")
           lines.extend(diagram)
 
