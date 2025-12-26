@@ -5,8 +5,12 @@ on:
     branches: [ main, master ]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  pipeline:
+  data_gates:
+    name: data / GE + Presidio
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -17,8 +21,104 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Execute quality gates pipeline
-        run: python run_pipeline.py
+      - name: Run Great Expectations and Presidio
+        run: |
+          python docker/ge/run_expectations.py
+          python docker/presidio/run_presidio.py
+
+      - name: Upload data gate reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-gates
+          path: |
+            reports/ge/summary.json
+            reports/presidio/redaction_summary.json
+          if-no-files-found: error
+
+  model_shap:
+    name: model / SHAP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run SHAP gate
+        run: python docker/shap/run_shap.py
+
+      - name: Upload SHAP report
+        uses: actions/upload-artifact@v4
+        with:
+          name: shap-gate
+          path: reports/shap/global.json
+          if-no-files-found: error
+
+  predeploy_gates:
+    name: predeploy / RAGAS + ART
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run RAGAS and ART gates
+        run: |
+          python docker/ragas/run_ragas.py
+          python docker/art/run_art.py
+
+      - name: Upload predeploy reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: predeploy-gates
+          path: |
+            reports/ragas/summary.json
+            reports/art/robustness.json
+          if-no-files-found: error
+
+  aggregate:
+    name: aggregate / consolidate results
+    runs-on: ubuntu-latest
+    needs: [data_gates, model_shap, predeploy_gates]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download gate artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: data-gates
+          path: .
+          merge-multiple: true
+
+      - name: Download SHAP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: shap-gate
+          path: .
+          merge-multiple: true
+
+      - name: Download predeploy artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: predeploy-gates
+          path: .
+          merge-multiple: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run aggregator
+        run: python docker/aggregator/run_aggregator.py
 
       - name: Summarize gate results in job summary
         if: always()
@@ -62,9 +162,6 @@ jobs:
               "### DevOps Flow (live run)",
           ]
 
-          # Render a Mermaid flow that mirrors a DevOps-style workflow diagram with
-          # explicit setup, fan-out gates, and aggregation. Each node is colored by
-          # pass/fail so the run topology is visually clear in the Actions summary.
           diagram = [
               "```mermaid",
               "flowchart LR",
@@ -72,37 +169,25 @@ jobs:
               "  classDef fail fill:#fee2e2,stroke:#f87171,color:#991b1b;",
               "  classDef neutral fill:#e2e8f0,stroke:#94a3b8,color:#0f172a;",
               "  trigger([GitHub Push/PR]):::neutral --> prep([Checkout & Setup]):::neutral",
-              "  prep --> runner{{Run Gates}}:::neutral",
+              "  prep --> data([Data Gates]):::neutral",
+              "  prep --> model([Model Gate]):::neutral",
+              "  prep --> predeploy([Predeploy Gates]):::neutral",
+              "  data --> agg{{Aggregate}}:::neutral",
+              "  model --> agg",
+              "  predeploy --> agg",
+              "  agg --> artifacts[[Reports & Dashboard]]",
           ]
-
-          gate_nodes = []
-          for idx, gate in enumerate(gates):
-              node = f"gate{idx}"
-              label = gate.get("label", gate.get("id", f"Gate {idx+1}"))
-              badge = "✅" if gate.get("passed") else "❌"
-              gate_nodes.append(node)
-              diagram.append(f"  runner --> {node}[{label} {badge}]")
 
           agg_pass = all(g.get("passed") for g in gates) if gates else False
           agg_badge = "✅" if agg_pass else "❌"
-          diagram += [
-              f"  runner --> aggregator[Aggregator {agg_badge}]",
-              "  aggregator --> artifacts[[Reports & Dashboard]]",
-          ]
 
-          for idx, gate in enumerate(gates):
-              node = f"gate{idx}"
-              diagram.append(f"  {node} --> aggregator")
+          for gate in gates:
+              label = gate.get("label", gate.get("id", "gate"))
+              badge = "✅" if gate.get("passed") else "❌"
+              diagram.append(f"  agg --> {label.replace(' ', '_')}[{label} {badge}]")
 
-          for idx, gate in enumerate(gates):
-              node = f"gate{idx}"
-              class_name = "pass" if gate.get("passed") else "fail"
-              diagram.append(f"  class {node} {class_name}")
-
-          agg_class = "pass" if agg_pass else "fail"
-
-          diagram.append(f"  class aggregator {agg_class}")
-          diagram.append("  class trigger,prep,runner,artifacts neutral")
+          diagram.append(f"  class agg {'pass' if agg_pass else 'fail'}")
+          diagram.append("  class trigger,prep,data,model,predeploy,artifacts neutral")
           diagram.append("```")
           lines.extend(diagram)
 

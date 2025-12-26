@@ -287,12 +287,18 @@ point with your own implementation if you need true LLM-based scoring.
 
 ## Continuous Integration
 
-Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub Action, which executes `python run_pipeline.py`
-on Ubuntu and uploads the consolidated `REPORT_SUMMARY.json` as well as the HTML dashboard (`reports/dashboard/index.html`) as
-build artifacts. The workflow also renders a Markdown table from `REPORT_SUMMARY.json` into the GitHub Actions job summary and
-includes a DevOps-style Mermaid flow diagram (trigger → checkout/setup → gate fan-out → aggregator → reports) with colored
-pass/fail nodes. This lets you see pass/fail details and the live pipeline topology directly on the run page without
-downloading artifacts. You can still download the artifacts to review the structured JSON or open the dashboard locally.
+Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub Action, now split into four coordinated jobs:
+
+1. **data / GE + Presidio** – runs the table validations and PII scan and publishes their JSON reports as an artifact.
+2. **model / SHAP** – runs the explainability gate on the bundled classifier and uploads `reports/shap/global.json`.
+3. **predeploy / RAGAS + ART** – evaluates retrieval support plus adversarial robustness and uploads their reports.
+4. **aggregate / consolidate results** – downloads the three artifacts, runs the aggregator to rebuild `REPORT_SUMMARY.json`
+   and the dashboard, and posts the run status into the job summary.
+
+The aggregate job uploads `REPORT_SUMMARY.json` and `reports/dashboard/index.html` as artifacts and also renders a Markdown
+table plus a DevOps-style Mermaid diagram (trigger → checkout/setup → data/model/predeploy fan-out → aggregator → reports)
+directly into the job summary so you can see gate outcomes without downloading files. Artifacts remain available if you want
+to inspect the structured JSON or open the dashboard locally.
 
 ## Extending
 
