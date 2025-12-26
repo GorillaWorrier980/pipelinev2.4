@@ -1,0 +1,68 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400">
+  <style>
+    .box { fill: #e3efff; stroke: #4287f5; stroke-width: 3; rx: 8; ry: 8; }
+    .agg { fill: #e1f5e8; stroke: #34a853; stroke-width: 3; rx: 8; ry: 8; }
+    .out { fill: #ffeef0; stroke: #ec644b; stroke-width: 3; rx: 8; ry: 8; }
+    .text { font: 16px 'DejaVu Sans', Arial, sans-serif; fill: #111; text-anchor: middle; }
+    .title { font: 18px 'DejaVu Sans', Arial, sans-serif; fill: #111; text-anchor: middle; font-weight: bold; }
+    .caption { font: 14px 'DejaVu Sans', Arial, sans-serif; fill: #555; text-anchor: middle; }
+    .arrow { stroke: #5a5a5a; stroke-width: 3; fill: none; marker-end: url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" fill="#5a5a5a">
+      <polygon points="0 0, 10 3.5, 0 7" />
+    </marker>
+  </defs>
+  <text x="600" y="28" class="title">Quality Gates Workflow</text>
+
+  <!-- Input labels -->
+  <text x="125" y="70" class="text">Tabular CSV&#10;(tabular_enron.csv)</text>
+  <text x="315" y="70" class="text">Email text&#10;(enron_text.jsonl)</text>
+  <text x="505" y="70" class="text">Model assets&#10;(metadata + weights + samples)</text>
+  <text x="695" y="70" class="text">Attack config&#10;(configs/art/config.json)</text>
+  <text x="885" y="70" class="text">RAG data&#10;(chunks.jsonl + qa_set.jsonl)</text>
+
+  <!-- Gate boxes -->
+  <rect x="50" y="120" width="150" height="70" class="box" />
+  <text x="125" y="152" class="text">Great&#10;Expectations</text>
+
+  <rect x="240" y="120" width="150" height="70" class="box" />
+  <text x="315" y="152" class="text">Presidio&#10;(PII)</text>
+
+  <rect x="430" y="120" width="150" height="70" class="box" />
+  <text x="505" y="152" class="text">SHAP</text>
+
+  <rect x="620" y="120" width="150" height="70" class="box" />
+  <text x="695" y="152" class="text">ART</text>
+
+  <rect x="810" y="120" width="150" height="70" class="box" />
+  <text x="885" y="152" class="text">RAGAS</text>
+
+  <!-- Aggregator -->
+  <rect x="1000" y="120" width="170" height="70" class="agg" />
+  <text x="1085" y="152" class="text">Aggregator&#10;(JSON + HTML)</text>
+
+  <!-- Outputs -->
+  <rect x="930" y="240" width="200" height="90" class="out" />
+  <text x="1030" y="270" class="text">Reports&#10;(REPORT_SUMMARY.json)&#10;(dashboard.html)&#10;(gate JSON snapshots)</text>
+
+  <!-- Arrows between gates -->
+  <line x1="200" y1="155" x2="240" y2="155" class="arrow" />
+  <line x1="390" y1="155" x2="430" y2="155" class="arrow" />
+  <line x1="580" y1="155" x2="620" y2="155" class="arrow" />
+  <line x1="770" y1="155" x2="810" y2="155" class="arrow" />
+  <line x1="960" y1="155" x2="1000" y2="155" class="arrow" />
+
+  <!-- Arrows from inputs to gates -->
+  <line x1="125" y1="90" x2="125" y2="120" class="arrow" />
+  <line x1="315" y1="90" x2="315" y2="120" class="arrow" />
+  <line x1="505" y1="90" x2="505" y2="120" class="arrow" />
+  <line x1="695" y1="90" x2="695" y2="120" class="arrow" />
+  <line x1="885" y1="90" x2="885" y2="120" class="arrow" />
+
+  <!-- Arrow from aggregator to outputs -->
+  <line x1="1085" y1="190" x2="1030" y2="240" class="arrow" />
+
+  <text x="600" y="380" class="caption">Outputs: REPORT_SUMMARY.json, dashboard.html, per-gate JSON snapshots</text>
+</svg>

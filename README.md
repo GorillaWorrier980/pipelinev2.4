@@ -42,6 +42,12 @@ reports/
 
 4. When the run completes, inspect the individual reports under `reports/**`, the consolidated `REPORT_SUMMARY.json` at the repository root, and the HTML dashboard at `reports/dashboard/index.html` for a quick pass/fail snapshot.
 
+### Workflow snapshot
+
+The end-to-end orchestration is summarized in the static diagram below so you can see how every gate feeds the aggregator and final outputs at a glance. The SVG lives at `docs/workflow.svg` for offline viewing or embedding in downstream docs.
+
+![Quality gates workflow](docs/workflow.svg)
+
 ### SHAP & ART Defaults
 
 The SHAP and ART gates evaluate a bundled MNIST-style linear classifier using real weights and a small reference set stored under `artifacts/models/classifier/mnist_cnn_weights.json` and `artifacts/data/models/mnist_samples.json`. The explainability step computes mean absolute SHAP contributions from those samples, while the robustness gate launches FGSM and PGD perturbations against the same model. Override the inputs and optional metadata/configuration via the `SHAP_*` and `ART_*` environment variables when supplying your own model artifacts.
