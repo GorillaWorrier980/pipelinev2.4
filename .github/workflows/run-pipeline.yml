@@ -112,6 +112,36 @@ jobs:
           path: .
           merge-multiple: true
 
+      - name: Normalize gate report locations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          targets = {
+              "ge": Path("reports/ge/summary.json"),
+              "presidio": Path("reports/presidio/redaction_summary.json"),
+              "shap": Path("reports/shap/global.json"),
+              "art": Path("reports/art/robustness.json"),
+              "ragas": Path("reports/ragas/summary.json"),
+          }
+
+          for name, dest in targets.items():
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              if dest.exists():
+                  print(f"{name}: found at {dest}")
+                  continue
+
+              candidates = list(Path(".").rglob(dest.name))
+              if not candidates:
+                  print(f"{name}: missing (no candidates for {dest.name})")
+                  continue
+
+              source = candidates[0]
+              shutil.copy2(source, dest)
+              print(f"{name}: copied {source} -> {dest}")
+          PY
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
