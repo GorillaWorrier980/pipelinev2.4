@@ -1,0 +1,97 @@
+name: Gemini Dispatch
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  dispatch:
+    name: dispatch / parse command
+    runs-on: ubuntu-latest
+    outputs:
+      command: ${{ steps.parse.outputs.command }}
+    steps:
+      - name: Parse command token
+        id: parse
+        run: |
+          body="${{ github.event.comment.body }}"
+          first_token=$(printf '%s\n' "$body" | awk '{print $1}')
+          stripped=${first_token#/}
+          command=$(printf '%s' "$stripped" | tr '[:upper:]' '[:lower:]')
+          echo "command=$command" >> "$GITHUB_OUTPUT"
+          echo "Detected command token: '$command'"
+
+  triage:
+    name: triage / triage request
+    runs-on: ubuntu-latest
+    needs: dispatch
+    if: ${{ needs.dispatch.outputs.command == 'triage' }}
+    steps:
+      - name: Run triage workflow
+        run: echo "Running triage for comment ${{ github.event.comment.html_url }}"
+
+  label:
+    name: label / apply labels
+    runs-on: ubuntu-latest
+    needs: [dispatch, triage]
+    if: ${{ needs.dispatch.outputs.command == 'triage' }}
+    steps:
+      - name: Apply labels
+        run: echo "Applying labels based on triage results"
+
+  invoke:
+    name: invoke / execute handler
+    runs-on: ubuntu-latest
+    needs: dispatch
+    if: ${{ needs.dispatch.outputs.command == 'invoke' }}
+    steps:
+      - name: Invoke automation
+        run: echo "Invoking handler for /invoke"
+
+  review:
+    name: review / request review
+    runs-on: ubuntu-latest
+    needs: dispatch
+    if: ${{ needs.dispatch.outputs.command == 'review' }}
+    steps:
+      - name: Request review
+        run: echo "Triggering review flow"
+
+  fix:
+    name: fix / attempt fix
+    runs-on: ubuntu-latest
+    needs: dispatch
+    if: ${{ needs.dispatch.outputs.command == 'fix' }}
+    steps:
+      - name: Attempt fix
+        run: echo "Triggering fix flow"
+
+  debugger:
+    name: debug / debug handler
+    runs-on: ubuntu-latest
+    needs: dispatch
+    if: ${{ needs.dispatch.outputs.command == 'debug' }}
+    steps:
+      - name: Debug workflow
+        run: echo "Running debug procedures"
+
+  fallthrough:
+    name: finalize / fallthrough
+    runs-on: ubuntu-latest
+    needs: [dispatch, triage, label, invoke, review, fix, debugger]
+    if: ${{ always() }}
+    steps:
+      - name: Summarize results
+        run: |
+          echo "Dispatch command: ${{ needs.dispatch.outputs.command }}"
+          echo "Triage result: ${{ needs.triage.result }}"
+          echo "Label result: ${{ needs.label.result }}"
+          echo "Invoke result: ${{ needs.invoke.result }}"
+          echo "Review result: ${{ needs.review.result }}"
+          echo "Fix result: ${{ needs.fix.result }}"
+          echo "Debugger result: ${{ needs.debugger.result }}"
