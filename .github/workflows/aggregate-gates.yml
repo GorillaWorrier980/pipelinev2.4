@@ -1,0 +1,75 @@
+name: Aggregate Gate Results
+
+on:
+  workflow_dispatch:
+    inputs:
+      data_run_id:
+        description: "Run ID from the Data Gates workflow"
+        required: true
+      model_run_id:
+        description: "Run ID from the Model Gate workflow"
+        required: true
+      predeploy_run_id:
+        description: "Run ID from the Predeploy Gates workflow"
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  aggregate:
+    name: aggregate / merge-gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download data gate artifacts
+        if: ${{ inputs.data_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.data_run_id }}
+          name: data-gates-reports
+          path: downloads/data
+
+      - name: Download model gate artifacts
+        if: ${{ inputs.model_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.model_run_id }}
+          name: model-gate-reports
+          path: downloads/model
+
+      - name: Download predeploy gate artifacts
+        if: ${{ inputs.predeploy_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.predeploy_run_id }}
+          name: predeploy-gates-reports
+          path: downloads/predeploy
+
+      - name: Normalize report locations
+        run: |
+          mkdir -p reports/ge reports/presidio reports/shap reports/art reports/ragas
+          rsync -av downloads/data/ reports/ || true
+          rsync -av downloads/model/ reports/ || true
+          rsync -av downloads/predeploy/ reports/ || true
+
+      - name: Run aggregator
+        run: python docker/aggregator/run_aggregator.py
+
+      - name: Upload consolidated reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: aggregate-reports
+          path: |
+            REPORT_SUMMARY.json
+            reports/dashboard/index.html
+            reports/gates/*.json
+            reports/**/summary.json
+            reports/**/global.json
+            reports/**/robustness.json

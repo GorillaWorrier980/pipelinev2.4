@@ -21,7 +21,7 @@ def evaluate_ge(report):
     failed = [item.get("name") for item in expectations if not item.get("success")]
     passed_count = total - len(failed)
 
-    row_count = report.get("row_count")
+    row_count = report.get("row_count", 0)
     columns = report.get("columns") or []
 
     # Treat a zero-expectation report as a failure with an actionable message so
@@ -29,8 +29,8 @@ def evaluate_ge(report):
     if total == 0:
         return (
             False,
-            "GE report contained zero expectations (rows: "
-            f"{row_count}, columns: {len(columns)})",
+            "GE report declared 0 expectations; verify headers/rows "
+            f"(rows: {row_count}, columns: {len(columns)})",
         )
 
     if report.get("success"):

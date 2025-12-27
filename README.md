@@ -48,6 +48,19 @@ The end-to-end orchestration is summarized in the static diagram below so you ca
 
 ![Quality gates workflow](docs/workflow.svg)
 
+### Split CI workflows (run independently, then aggregate)
+
+The GitHub Actions automation is now broken into **three independent pull-request workflows** plus a manual aggregation workflow so you can trigger each stage separately and only merge the results when ready:
+
+| Workflow | Trigger | What runs | Artifact name |
+| --- | --- | --- | --- |
+| `Data Gates` | `pull_request`, `workflow_dispatch` | Great Expectations + Presidio | `data-gates-reports` |
+| `Model Gate` | `pull_request`, `workflow_dispatch` | SHAP explainability | `model-gate-reports` |
+| `Predeploy Gates` | `pull_request`, `workflow_dispatch` | ART + RAGAS | `predeploy-gates-reports` |
+| `Aggregate Gate Results` | `workflow_dispatch` | Downloads the three artifacts by run ID, normalizes them into `reports/**`, and runs the aggregator/dashboard | `aggregate-reports` |
+
+To merge results after the three gate workflows finish, open the **Aggregate Gate Results** workflow, supply the `run_id` values from the successful Data/Model/Predeploy runs, and dispatch it. The aggregator job copies the downloaded gate reports into the expected `reports/...` paths, regenerates `REPORT_SUMMARY.json` plus the dashboard, and re-uploads everything under `aggregate-reports`.
+
 ### SHAP & ART Defaults
 
 The SHAP and ART gates evaluate a bundled MNIST-style linear classifier using real weights and a small reference set stored under `artifacts/models/classifier/mnist_cnn_weights.json` and `artifacts/data/models/mnist_samples.json`. The explainability step computes mean absolute SHAP contributions from those samples, while the robustness gate launches FGSM and PGD perturbations against the same model. Override the inputs and optional metadata/configuration via the `SHAP_*` and `ART_*` environment variables when supplying your own model artifacts.
