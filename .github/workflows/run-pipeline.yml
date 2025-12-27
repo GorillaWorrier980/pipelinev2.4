@@ -37,6 +37,7 @@ jobs:
 
   model_shap:
     name: model / SHAP
+    needs: data_gates
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -59,6 +60,7 @@ jobs:
 
   predeploy_gates:
     name: predeploy / RAGAS + ART
+    needs: model_shap
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository

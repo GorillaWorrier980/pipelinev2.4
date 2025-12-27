@@ -85,7 +85,7 @@ The following reference snippets show exactly how the bundled datasets are shape
 * **Detection method**
   * Concatenates `subject` + `body` for each record.
   * Runs regex-based recognizers for EMAIL, PHONE, and NAME tokens.
-  * Emits a JSON report with per-entity hit counts, a `total_entities` aggregate so the dashboard can display how many privacy events were found, and up to three anonymized snippets per entity type; gate passes if at least one entity is detected.
+  * Emits a JSON report with per-entity hit counts, a `total_entities` aggregate so the dashboard can display how many privacy events were found, and up to three anonymized snippets per entity type; gate passes only when **no** entities are detected (any hit fails).
 
 #### SHAP (Model explainability)
 * **Dataset content**
@@ -272,7 +272,7 @@ The dashboard summarizes each gate using the following success checks:
 | Gate | Pass Criteria |
 | --- | --- |
 | Great Expectations | All configured expectations succeed. |
-| Presidio | At least one PII entity is detected in the sample. |
+| Presidio | No PII entities are detected in the sample; any hit fails. |
 | SHAP | Mean absolute importance scores sum to 1.0 (±0.01). |
 | ART | FGSM and PGD adversarial accuracies remain ≥ 0.70. |
 | RAGAS | Mean support **and** mean context coverage scores each meet or exceed 0.60. |
@@ -287,7 +287,7 @@ point with your own implementation if you need true LLM-based scoring.
 
 ## Continuous Integration
 
-Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub Action, now split into four coordinated jobs:
+Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub Action, now split into four coordinated jobs that run sequentially:
 
 1. **data / GE + Presidio** – runs the table validations and PII scan and publishes their JSON reports as an artifact.
 2. **model / SHAP** – runs the explainability gate on the bundled classifier and uploads `reports/shap/global.json`.

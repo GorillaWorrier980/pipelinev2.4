@@ -16,13 +16,18 @@ REPORT_PATHS = {
 def evaluate_ge(report):
     if not report:
         return False, "Report missing"
+    expectations = report.get("expectations") or []
+    total = len(expectations)
+    failed = [item.get("name") for item in expectations if not item.get("success")]
+    passed_count = total - len(failed)
+
     if report.get("success"):
-        passed_expectations = len(report.get("expectations", []))
-        return True, f"All {passed_expectations} expectations passed"
-    failed = [item.get("name") for item in report.get("expectations", []) if not item.get("success")]
+        return True, f"All {total} expectations passed" if total else "No expectations were configured"
     if failed:
-        return False, "Failed expectations: " + ", ".join(failed[:5])
-    return False, "Missing expectation details"
+        return False, f"{len(failed)} of {total} expectations failed: " + ", ".join(failed[:5])
+    if not expectations:
+        return False, "No expectations were evaluated"
+    return False, f"{passed_count}/{total} expectations passed"
 
 
 def evaluate_presidio(report):
@@ -33,8 +38,8 @@ def evaluate_presidio(report):
     else:
         total_hits = sum(report.get("entity_counts", {}).values())
     if total_hits > 0:
-        return True, f"Detected {total_hits} entities"
-    return False, "Detected 0 entities"
+        return False, f"Detected {total_hits} entities (policy blocks any PII)"
+    return True, "No PII detected"
 
 
 def evaluate_shap(report):
@@ -100,7 +105,7 @@ GATE_RULES = {
     },
     "presidio": {
         "label": "Presidio",
-        "pass_criteria": "At least one PII entity is detected in the sample.",
+        "pass_criteria": "No PII entities should be detected; any hit fails.",
         "evaluator": evaluate_presidio,
     },
     "shap": {
