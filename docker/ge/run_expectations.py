@@ -9,6 +9,14 @@ from typing import Dict, List
 
 DATE_FIELDS = {"sent_at": "%Y-%m-%d %H:%M:%S"}
 BOOLEAN_TRUE = {"true", "false", "True", "False", True, False}
+DEFAULT_COLUMNS = [
+    "message_id",
+    "sender",
+    "recipient",
+    "subject",
+    "sent_at",
+    "has_attachment",
+]
 
 
 def load_rows(path: Path) -> List[Dict[str, str]]:
@@ -73,6 +81,11 @@ def main() -> None:
 
     rows = load_rows(input_path)
     columns = rows[0].keys() if rows else []
+    used_default_columns = False
+
+    if not columns:
+        columns = DEFAULT_COLUMNS
+        used_default_columns = True
 
     expectations: List[Dict[str, object]] = []
     for column in columns:
@@ -84,6 +97,27 @@ def main() -> None:
     if "has_attachment" in columns:
         expectations.append(expectation_allowed_values(rows, "has_attachment", BOOLEAN_TRUE))
 
+    if not rows:
+        expectations.append(
+            {
+                "name": "row_count_positive",
+                "success": False,
+                "details": {"row_count": 0, "message": "Input dataset contained no rows"},
+            }
+        )
+
+    if used_default_columns:
+        expectations.append(
+            {
+                "name": "columns_inferred_defaults",
+                "success": False,
+                "details": {
+                    "columns_used": DEFAULT_COLUMNS,
+                    "message": "No header detected; default expectation columns applied",
+                },
+            }
+        )
+
     summary = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "input_path": str(input_path),
@@ -91,6 +125,8 @@ def main() -> None:
         "columns": list(columns),
         "expectations": expectations,
         "success": all(item["success"] for item in expectations),
+        "expectations_count": len(expectations),
+        "used_default_columns": used_default_columns,
     }
 
     os.makedirs(output_path.parent, exist_ok=True)

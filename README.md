@@ -36,7 +36,7 @@ reports/
    python run_pipeline.py
    ```
 
-   Each gate is executed sequentially and the aggregated report is refreshed at the end of the run.
+   Each gate runs independently and the aggregated report is refreshed at the end of the run.
 
 3. (Optional) You can still orchestrate the original Docker services via `docker compose up --build` if you prefer container isolation.
 
@@ -287,12 +287,12 @@ point with your own implementation if you need true LLM-based scoring.
 
 ## Continuous Integration
 
-Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub Action, now split into four coordinated jobs that run sequentially:
+Every push and pull request triggers the **Run Quality Gates Pipeline** GitHub Action, now split into four coordinated jobs that run independently before aggregation:
 
 1. **data / GE + Presidio** – runs the table validations and PII scan and publishes their JSON reports as an artifact.
 2. **model / SHAP** – runs the explainability gate on the bundled classifier and uploads `reports/shap/global.json`.
 3. **predeploy / RAGAS + ART** – evaluates retrieval support plus adversarial robustness and uploads their reports.
-4. **aggregate / consolidate results** – downloads the three artifacts, runs the aggregator to rebuild `REPORT_SUMMARY.json`
+4. **aggregate / consolidate results** – waits for the three artifacts, runs the aggregator to rebuild `REPORT_SUMMARY.json`
    and the dashboard, and posts the run status into the job summary.
 
 The aggregate job uploads `REPORT_SUMMARY.json` and `reports/dashboard/index.html` as artifacts and also renders a Markdown
