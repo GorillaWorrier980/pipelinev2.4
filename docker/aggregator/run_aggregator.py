@@ -21,12 +21,22 @@ def evaluate_ge(report):
     failed = [item.get("name") for item in expectations if not item.get("success")]
     passed_count = total - len(failed)
 
+    row_count = report.get("row_count")
+    columns = report.get("columns") or []
+
+    # Treat a zero-expectation report as a failure with an actionable message so
+    # the dashboard never shows the vague "No expectations were evaluated" text.
+    if total == 0:
+        return (
+            False,
+            "GE report contained zero expectations (rows: "
+            f"{row_count}, columns: {len(columns)})",
+        )
+
     if report.get("success"):
-        return True, f"All {total} expectations passed" if total else "No expectations were configured"
+        return True, f"All {total} expectations passed"
     if failed:
         return False, f"{len(failed)} of {total} expectations failed: " + ", ".join(failed[:5])
-    if not expectations:
-        return False, "No expectations were evaluated"
     return False, f"{passed_count}/{total} expectations passed"
 
 
