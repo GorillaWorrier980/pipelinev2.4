@@ -1,0 +1,88 @@
+name: Quality Gates
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: gates / full-pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            -r docker/ge/requirements.txt \
+            -r docker/presidio/requirements.txt \
+            -r docker/shap/requirements.txt \
+            -r docker/art/requirements.txt \
+            -r docker/ragas/requirements.txt
+
+      - name: Run full pipeline
+        run: python run_pipeline.py
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gates-reports
+          path: |
+            REPORT_SUMMARY.json
+            reports/**
+
+      - name: Publish job summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path("REPORT_SUMMARY.json")
+          if not summary_path.exists():
+            Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("Pipeline did not produce REPORT_SUMMARY.json\n")
+            raise SystemExit(0)
+
+          summary = json.loads(summary_path.read_text())
+          statuses = summary.get("gate_statuses", [])
+
+          lines = ["# Quality gate summary", ""]
+          lines.append("| Gate | Status | Details |")
+          lines.append("| --- | --- | --- |")
+          for status in statuses:
+            badge = "✅" if status.get("passed") else "❌"
+            details = status.get("details", "")
+            lines.append(f"| {status.get('label', status.get('id', ''))} | {badge} | {details} |")
+          lines.append("")
+
+          diagram = ["```mermaid", "flowchart LR", "  trigger([GitHub Push/PR]):::neutral --> gates([Quality Gates]):::neutral", "  gates --> agg{{Aggregate}}:::neutral"]
+          for status in statuses:
+            node_id = status.get("id", "gate")
+            label = status.get("label", node_id)
+            badge = "✅" if status.get("passed") else "❌"
+            diagram.append(f"  agg --> {node_id}([{label} {badge}])")
+          diagram.append("  agg --> artifacts[[Reports & Dashboard]]")
+          diagram.append("  classDef pass fill:#d1fae5,stroke:#34d399,color:#065f46;")
+          diagram.append("  classDef fail fill:#fee2e2,stroke:#f87171,color:#991b1b;")
+          diagram.append("  classDef neutral fill:#e2e8f0,stroke:#94a3b8,color:#0f172a;")
+          for status in statuses:
+            node_id = status.get("id", "gate")
+            diagram.append(f"  class {node_id} {'pass' if status.get('passed') else 'fail'}")
+          diagram.append("  class trigger,gates,agg,artifacts neutral")
+          diagram.append("```")
+
+          lines.extend(diagram)
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("\n".join(lines))
+          PY

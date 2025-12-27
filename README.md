@@ -48,18 +48,15 @@ The end-to-end orchestration is summarized in the static diagram below so you ca
 
 ![Quality gates workflow](docs/workflow.svg)
 
-### Split CI workflows (run independently, then aggregate)
+### CI workflow (all gates together)
 
-The GitHub Actions automation is now broken into **three independent pull-request workflows** plus a manual aggregation workflow so you can trigger each stage separately and only merge the results when ready:
+The GitHub Actions automation is consolidated into a single workflow named **Quality Gates** that runs every gate end-to-end and uploads the combined artifacts. It triggers on `push`, `pull_request`, and manual `workflow_dispatch` so you can exercise the full pipeline on demand.
 
-| Workflow | Trigger | What runs | Artifact name |
-| --- | --- | --- | --- |
-| `Data Gates` | `pull_request`, `workflow_dispatch` | Great Expectations + Presidio | `data-gates-reports` |
-| `Model Gate` | `pull_request`, `workflow_dispatch` | SHAP explainability | `model-gate-reports` |
-| `Predeploy Gates` | `pull_request`, `workflow_dispatch` | ART + RAGAS | `predeploy-gates-reports` |
-| `Aggregate Gate Results` | `workflow_dispatch` | Downloads the three artifacts by run ID, normalizes them into `reports/**`, and runs the aggregator/dashboard | `aggregate-reports` |
+| Workflow | What runs | Artifact name |
+| --- | --- | --- |
+| `Quality Gates` | Great Expectations, Presidio, SHAP, ART, RAGAS, and the aggregator/dashboard | `quality-gates-reports` |
 
-To merge results after the three gate workflows finish, open the **Aggregate Gate Results** workflow, supply the `run_id` values from the successful Data/Model/Predeploy runs, and dispatch it. The aggregator job copies the downloaded gate reports into the expected `reports/...` paths, regenerates `REPORT_SUMMARY.json` plus the dashboard, and re-uploads everything under `aggregate-reports`.
+Each run installs the gate dependencies, executes `python run_pipeline.py`, and publishes the JSON/HTML reports (including `REPORT_SUMMARY.json`) alongside a job summary in the Actions UI. The summary renders a Mermaid pipeline with colored pass/fail nodes for every gate plus links to the uploaded artifacts.
 
 ### SHAP & ART Defaults
 
