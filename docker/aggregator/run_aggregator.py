@@ -12,6 +12,8 @@ REPORT_PATHS = {
     "ragas": "reports/ragas/summary.json",
 }
 
+DEFAULT_TIMINGS_PATH = "reports/timings.json"
+
 
 def evaluate_ge(report):
     if not report:
@@ -146,11 +148,12 @@ def load_json(path: Path):
         return None
 
 
-def build_gate_statuses(summary, resolved_paths):
+def build_gate_statuses(summary, resolved_paths, durations):
     statuses = []
     for gate, config in GATE_RULES.items():
         report = summary["reports"].get(gate)
         passed, details = config["evaluator"](report)
+        duration = durations.get(gate)
         statuses.append(
             {
                 "id": gate,
@@ -159,6 +162,7 @@ def build_gate_statuses(summary, resolved_paths):
                 "details": details,
                 "pass_criteria": config["pass_criteria"],
                 "report_path": str(resolved_paths.get(gate, "")),
+                "duration_seconds": duration,
             }
         )
     return statuses
@@ -168,12 +172,15 @@ def render_dashboard(statuses, generated_at):
     rows = []
     for status in statuses:
         badge = "✅" if status["passed"] else "❌"
+        duration_cell = (
+            f"{status['duration_seconds']:.2f}s" if status.get("duration_seconds") else "—"
+        )
         rows.append(
             "            <tr>"
             f"<td>{status['label']}</td>"
             f"<td>{badge}</td>"
             f"<td>{status['pass_criteria']}</td>"
-            f"<td>{status['details']}</td>"
+            f"<td>{status['details']} ({duration_cell})</td>"
             "</tr>"
         )
     table_rows = "\n".join(rows) if rows else "            <tr><td colspan=4>No gate results found.</td></tr>"
@@ -220,6 +227,8 @@ def main() -> None:
         os.environ.get("DASHBOARD_GATES_DIR", "reports/dashboard/gates")
     )
 
+    timings_path = Path(os.environ.get("AGGREGATOR_TIMINGS", DEFAULT_TIMINGS_PATH))
+
     summary = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "reports": {},
@@ -236,7 +245,15 @@ def main() -> None:
         else:
             summary["reports"][name] = data
 
-    gate_statuses = build_gate_statuses(summary, resolved_paths)
+    durations = {}
+    total_duration = None
+    if timings_path.exists():
+        timings_payload = load_json(timings_path) or {}
+        if isinstance(timings_payload, dict):
+            durations = timings_payload.get("durations_seconds", {}) or {}
+            total_duration = timings_payload.get("total_seconds")
+
+    gate_statuses = build_gate_statuses(summary, resolved_paths, durations)
     os.makedirs(gate_status_dir, exist_ok=True)
 
     gate_status_files = {}
@@ -259,6 +276,11 @@ def main() -> None:
     summary["gate_statuses"] = gate_statuses
     summary["dashboard"] = {"path": str(dashboard_path)}
     summary["gate_status_files"] = gate_status_files
+    summary["durations_seconds"] = durations
+    if total_duration is not None:
+        summary["total_duration_seconds"] = total_duration
+    if timings_path.exists():
+        summary["timings_path"] = str(timings_path)
 
     os.makedirs(output_path.parent, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as f:
@@ -281,6 +303,14 @@ def main() -> None:
     print("Missing reports:", missing)
     print("Passed gates:", passed)
     print("Failed gates:", failed)
+
+    if durations:
+        parts = []
+        for gate_id, value in sorted(durations.items()):
+            parts.append(f"{gate_id}={value:.2f}s")
+        print("Gate durations:", ", ".join(parts))
+    if total_duration is not None:
+        print(f"Total pipeline duration: {total_duration:.2f}s")
 
 
 if __name__ == "__main__":

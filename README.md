@@ -41,6 +41,7 @@ reports/
 3. (Optional) You can still orchestrate the original Docker services via `docker compose up --build` if you prefer container isolation.
 
 4. When the run completes, inspect the individual reports under `reports/**`, the consolidated `REPORT_SUMMARY.json` at the repository root, and the HTML dashboard at `reports/dashboard/index.html` for a quick pass/fail snapshot.
+   * The pipeline also records per-gate timings plus the end-to-end runtime in `reports/timings.json` so you can spot slow stages.
 
 ### Workflow snapshot
 
@@ -56,7 +57,7 @@ The GitHub Actions automation is consolidated into a single workflow named **Qua
 | --- | --- | --- |
 | `Quality Gates` | Great Expectations, Presidio, SHAP, ART, RAGAS, and the aggregator/dashboard | `quality-gates-reports` |
 
-Each run installs the gate dependencies, executes `python run_pipeline.py`, and publishes the JSON/HTML reports (including `REPORT_SUMMARY.json`) alongside a job summary in the Actions UI. The summary renders a Mermaid pipeline with colored pass/fail nodes for every gate plus links to the uploaded artifacts.
+Each run installs the gate dependencies, executes `python run_pipeline.py`, and publishes the JSON/HTML reports (including `REPORT_SUMMARY.json` and `reports/timings.json`) alongside a job summary in the Actions UI. The summary renders a Mermaid pipeline with colored pass/fail nodes for every gate, lists per-gate durations and the total runtime, and links to the uploaded artifacts.
 
 ### SHAP & ART Defaults
 

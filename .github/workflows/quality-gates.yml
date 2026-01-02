@@ -57,14 +57,23 @@ jobs:
 
           summary = json.loads(summary_path.read_text())
           statuses = summary.get("gate_statuses", [])
+          durations = summary.get("durations_seconds", {})
+          total_duration = summary.get("total_duration_seconds")
 
           lines = ["# Quality gate summary", ""]
-          lines.append("| Gate | Status | Details |")
-          lines.append("| --- | --- | --- |")
+          lines.append("| Gate | Status | Details | Duration (s) |")
+          lines.append("| --- | --- | --- | --- |")
           for status in statuses:
             badge = "✅" if status.get("passed") else "❌"
             details = status.get("details", "")
-            lines.append(f"| {status.get('label', status.get('id', ''))} | {badge} | {details} |")
+            duration = durations.get(status.get("id"))
+            duration_cell = f"{duration:.2f}" if duration is not None else "—"
+            lines.append(f"| {status.get('label', status.get('id', ''))} | {badge} | {details} | {duration_cell} |")
+          agg_duration = durations.get("aggregator")
+          if agg_duration is not None:
+            lines.append(f"| Aggregator | — | Consolidated gate outputs | {agg_duration:.2f} |")
+          if total_duration is not None:
+            lines.append("| **Pipeline total** |  |  | **{:.2f}** |".format(total_duration))
           lines.append("")
 
           diagram = ["```mermaid", "flowchart LR", "  trigger([GitHub Push/PR]):::neutral --> gates([Quality Gates]):::neutral", "  gates --> agg{{Aggregate}}:::neutral"]
