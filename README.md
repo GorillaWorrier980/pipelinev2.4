@@ -59,6 +59,21 @@ reports/
 4. When the run completes, inspect the individual reports under `reports/**`, the consolidated `REPORT_SUMMARY.json` at the repository root, and the HTML dashboard at `reports/dashboard/index.html` for a quick pass/fail snapshot.
    * The pipeline also records per-gate timings plus the end-to-end runtime in `reports/timings.json` so you can spot slow stages.
 
+### Scenario-based experiments
+
+Run deterministic scenarios without manually editing datasets or model artifacts. Each scenario creates a dedicated
+working directory under `runs/<timestamp>/<scenario>/` with isolated inputs and output artifacts.
+
+```bash
+python scripts/run_scenario.py --scenario baseline --config configs/pipeline.config.yaml
+python scripts/run_scenario.py --scenario pii_injection --config configs/pipeline.config.yaml
+```
+
+Scenario outputs are stored in `runs/.../artifacts/` and include all gate reports plus `REPORT_SUMMARY.json` and the
+HTML dashboard. Each run also writes `runs/.../scenario_metadata.json` with the injected parameters, input paths, and
+the gates expected to fail. Scenario parameters (such as row ratios) live under the `scenarios` section of
+`configs/pipeline.config.yaml`.
+
 ### Workflow snapshot
 
 The end-to-end orchestration is summarized in the static diagram below so you can see how every gate feeds the aggregator and final outputs at a glance. The SVG lives at `docs/workflow.svg` for offline viewing or embedding in downstream docs.

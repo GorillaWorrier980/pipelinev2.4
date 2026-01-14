@@ -94,7 +94,8 @@ def main() -> None:
         "total_seconds": total,
     }
 
-    timings_path = repo_root / "reports" / "timings.json"
+    timings_path_env = env.get("PIPELINE_TIMINGS_PATH")
+    timings_path = Path(timings_path_env) if timings_path_env else repo_root / "reports" / "timings.json"
     timings_path.parent.mkdir(parents=True, exist_ok=True)
     with timings_path.open("w", encoding="utf-8") as f:
         json.dump(timings_payload, f, indent=2)

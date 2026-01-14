@@ -3,6 +3,7 @@ reports/**/*.json
 reports/**/*.jsonl
 reports/**/*.html
 REPORT_SUMMARY.json
+runs/
 
 # Python cache
 __pycache__/
