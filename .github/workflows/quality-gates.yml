@@ -5,9 +5,14 @@ on:
     inputs:
       asset_url:
         description: Direct download URL of asset_bundle.zip from GitHub Release (releases/download/...)
-        required: true
+        required: false
         type: string
         default: https://github.com/GorillaWorrier980/pipelinev2.4/releases/download/pipeline-v2.5.0/asset_bundle.zip
+      asset_path:
+        description: Path to a checked-in asset_bundle.zip (used when asset_url is empty)
+        required: false
+        type: string
+        default: assets/asset_bundle.zip
 
 permissions:
   contents: read
@@ -38,10 +43,19 @@ jobs:
           rm -rf reports runs asset_bundle
           rm -f REPORT_SUMMARY.json asset_bundle.zip
 
-      - name: Download asset bundle
+      - name: Resolve asset bundle source
         run: |
-          echo "asset_url=${{ inputs.asset_url }}"
-          curl -L "${{ inputs.asset_url }}" -o asset_bundle.zip
+          if [ -n "${{ inputs.asset_url }}" ]; then
+            echo "Using asset_url=${{ inputs.asset_url }}"
+            curl -L "${{ inputs.asset_url }}" -o asset_bundle.zip
+          else
+            echo "Using asset_path=${{ inputs.asset_path }}"
+            if [ ! -f "${{ inputs.asset_path }}" ]; then
+              echo "asset_bundle.zip not found at ${{ inputs.asset_path }}"
+              exit 1
+            fi
+            cp "${{ inputs.asset_path }}" asset_bundle.zip
+          fi
           ls -lah asset_bundle.zip
           file asset_bundle.zip
 

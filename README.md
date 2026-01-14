@@ -101,6 +101,10 @@ workflow via the Actions UI and provide the asset URL to the `asset_bundle.zip` 
 `manifest.json` that lists the gate inputs (relative to the zip root), and the workflow will download, unzip, and set
 the expected environment variables before running `python run_pipeline.py`.
 
+If you prefer to upload the bundle into the repository, place the zip at `assets/asset_bundle.zip` and leave
+`asset_url` empty when dispatching the workflow. The `asset_path` input controls the local zip path (default:
+`assets/asset_bundle.zip`).
+
 Example `manifest.json` keys:
 `ge_input`, `presidio_input`, `shap_metadata`, `shap_weights`, `shap_reference`, `art_metadata`, `art_weights`,
 `art_reference`, `ragas_chunks`, `ragas_qa`.
