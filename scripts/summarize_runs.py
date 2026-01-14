@@ -1,10 +1,8 @@
+import argparse
 import csv
 import json
 from pathlib import Path
 from typing import Dict, List, Optional
-
-
-RUNS_ROOT = Path("runs")
 KNOWN_GATES = ["ge", "presidio", "shap", "art", "ragas"]
 
 
@@ -49,18 +47,18 @@ def summarize_gate_metrics(gate: str, report: Optional[Dict[str, object]]) -> st
     return ""
 
 
-def build_rows() -> List[Dict[str, str]]:
+def build_rows(runs_root: Path) -> List[Dict[str, str]]:
     rows: List[Dict[str, str]] = []
-    if not RUNS_ROOT.exists():
+    if not runs_root.exists():
         return rows
 
-    for metadata_path in RUNS_ROOT.glob("*/**/scenario_metadata.json"):
+    for metadata_path in runs_root.glob("*/**/scenario_metadata.json"):
         scenario_dir = metadata_path.parent
         run_id = scenario_dir.parent.name
         metadata = load_json(metadata_path) or {}
         scenario = str(metadata.get("scenario", "unknown"))
         run_mode = str(metadata.get("run_mode", "unknown"))
-        run_outputs = Path(metadata.get("outputs_root", scenario_dir / "artifacts"))
+        run_outputs = Path(metadata.get("outputs_root", scenario_dir))
         summary_path = run_outputs / "REPORT_SUMMARY.json"
         summary = load_json(summary_path) or {}
 
@@ -95,9 +93,9 @@ def build_rows() -> List[Dict[str, str]]:
     return rows
 
 
-def write_csv(rows: List[Dict[str, str]]) -> None:
-    RUNS_ROOT.mkdir(parents=True, exist_ok=True)
-    csv_path = RUNS_ROOT / "summary.csv"
+def write_csv(rows: List[Dict[str, str]], runs_root: Path) -> None:
+    runs_root.mkdir(parents=True, exist_ok=True)
+    csv_path = runs_root / "summary.csv"
     fieldnames = ["run_id", "scenario", "run_mode", "gate", "status", "evidence_path", "key_metrics"]
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -105,9 +103,9 @@ def write_csv(rows: List[Dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
-def write_markdown(rows: List[Dict[str, str]]) -> None:
-    RUNS_ROOT.mkdir(parents=True, exist_ok=True)
-    md_path = RUNS_ROOT / "summary.md"
+def write_markdown(rows: List[Dict[str, str]], runs_root: Path) -> None:
+    runs_root.mkdir(parents=True, exist_ok=True)
+    md_path = runs_root / "summary.md"
     grouped: Dict[str, Dict[str, str]] = {}
     for row in rows:
         key = f"{row['run_id']}:{row['scenario']}"
@@ -127,11 +125,24 @@ def write_markdown(rows: List[Dict[str, str]]) -> None:
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Summarize scenario runs under a runs/ directory.")
+    parser.add_argument(
+        "runs_root",
+        nargs="?",
+        default="runs",
+        help="Runs directory to summarize (default: runs).",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    rows = build_rows()
-    write_csv(rows)
-    write_markdown(rows)
-    print("Wrote runs/summary.csv and runs/summary.md")
+    args = parse_args()
+    runs_root = Path(args.runs_root)
+    rows = build_rows(runs_root)
+    write_csv(rows, runs_root)
+    write_markdown(rows, runs_root)
+    print(f"Wrote {runs_root}/summary.csv and {runs_root}/summary.md")
 
 
 if __name__ == "__main__":

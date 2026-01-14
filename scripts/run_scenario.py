@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--config",
-        default="configs/pipeline.config.yaml",
+        default="configs/pipeline.config.json",
         help="Path to the pipeline config file.",
     )
     parser.add_argument(
@@ -69,7 +69,7 @@ def main() -> None:
     timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     run_dir = REPO_ROOT / "runs" / timestamp / scenario
     run_inputs = run_dir / "inputs"
-    run_outputs = run_dir / "artifacts"
+    run_outputs = run_dir
     run_dir.mkdir(parents=True, exist_ok=True)
     run_inputs.mkdir(parents=True, exist_ok=True)
     run_outputs.mkdir(parents=True, exist_ok=True)

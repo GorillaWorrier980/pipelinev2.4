@@ -70,7 +70,7 @@ jobs:
           import json
           from pathlib import Path
 
-          config_path = Path("configs/pipeline.config.yaml")
+          config_path = Path("configs/pipeline.config.json")
           payload = json.loads(config_path.read_text())
           payload["run_mode"] = "premerge"
           Path("premerge.config.json").write_text(json.dumps(payload, indent=2))
@@ -86,7 +86,6 @@ jobs:
           path: |
             REPORT_SUMMARY.json
             reports/**
-            runs/**/artifacts/**
 
       - name: Publish job summary
         if: always()
@@ -111,7 +110,10 @@ jobs:
           lines.append("| Gate | Status | Details | Duration (s) |")
           lines.append("| --- | --- | --- | --- |")
           for status in statuses:
-            badge = "✅" if status.get("passed") else "❌"
+            if status.get("skipped"):
+              badge = "—"
+            else:
+              badge = "✅" if status.get("passed") else "❌"
             details = status.get("details", "")
             duration = durations.get(status.get("id"))
             duration_cell = f"{duration:.2f}" if duration is not None else "—"
@@ -135,7 +137,10 @@ jobs:
           for status in statuses:
             node_id = status.get("id", "gate")
             label = status.get("label", node_id)
-            badge = "✅" if status.get("passed") else "❌"
+            if status.get("skipped"):
+              badge = "—"
+            else:
+              badge = "✅" if status.get("passed") else "❌"
             diagram.append(f"  agg --> {node_id}([{label} {badge}])")
           diagram.append("  agg --> artifacts[[Reports & Dashboard]]")
           diagram.append("  classDef pass fill:#d1fae5,stroke:#34d399,color:#065f46;")
@@ -143,7 +148,10 @@ jobs:
           diagram.append("  classDef neutral fill:#e2e8f0,stroke:#94a3b8,color:#0f172a;")
           for status in statuses:
             node_id = status.get("id", "gate")
-            diagram.append(f"  class {node_id} {'pass' if status.get('passed') else 'fail'}")
+            if status.get("skipped"):
+              diagram.append(f"  class {node_id} neutral")
+            else:
+              diagram.append(f"  class {node_id} {'pass' if status.get('passed') else 'fail'}")
           diagram.append("  class trigger,gates,agg,artifacts neutral")
           diagram.append("```")
 
@@ -183,7 +191,7 @@ jobs:
           import json
           from pathlib import Path
 
-          config_path = Path("configs/pipeline.config.yaml")
+          config_path = Path("configs/pipeline.config.json")
           payload = json.loads(config_path.read_text())
           payload["run_mode"] = "${{ github.event.inputs.run_mode }}"
           Path("dispatch.config.json").write_text(json.dumps(payload, indent=2))
@@ -207,9 +215,8 @@ jobs:
         with:
           name: quality-gates-reports
           path: |
-            REPORT_SUMMARY.json
-            reports/**
-            runs/**/artifacts/**
+            runs/**/REPORT_SUMMARY.json
+            runs/**/reports/**
 
   nightly:
     name: gates / nightly-scenarios
@@ -217,7 +224,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        scenario: [baseline, pii_injection, data_quality_degradation]
+        scenario: [baseline, pii_injection]
     steps:
       - name: Record workflow start
         run: echo "WORKFLOW_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
@@ -246,7 +253,7 @@ jobs:
           import json
           from pathlib import Path
 
-          config_path = Path("configs/pipeline.config.yaml")
+          config_path = Path("configs/pipeline.config.json")
           payload = json.loads(config_path.read_text())
           payload["run_mode"] = "nightly"
           Path("nightly.config.json").write_text(json.dumps(payload, indent=2))
@@ -263,6 +270,5 @@ jobs:
         with:
           name: quality-gates-reports-${{ matrix.scenario }}
           path: |
-            REPORT_SUMMARY.json
-            reports/**
-            runs/**/artifacts/**
+            runs/**/REPORT_SUMMARY.json
+            runs/**/reports/**

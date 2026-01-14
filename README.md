@@ -38,7 +38,7 @@ reports/
 
    Each gate runs independently and the aggregated report is refreshed at the end of the run.
 
-   To run with a versioned pipeline configuration, point the runner at the JSON config file:
+   To run with the versioned pipeline configuration, point the runner at the JSON config file:
 
    ```bash
    python scripts/run_pipeline.py --config configs/pipeline.config.json
@@ -52,7 +52,8 @@ reports/
 
    Gate names map to IDs as follows: `data_quality` → GE, `pii_scan` → Presidio, `explainability` → SHAP,
    `robustness` → ART, and `rag_eval` → RAGAS. Thresholds in `configs/pipeline.config.json` control the
-   pass/fail rules for each gate and are consumed by the aggregator during report generation.
+   pass/fail rules for each gate and are consumed by the aggregator during report generation. If a gate is
+   enabled but its report is missing, the aggregator marks it as **fail** with a "Report missing" detail.
 
 3. (Optional) You can still orchestrate the original Docker services via `docker compose up --build` if you prefer container isolation.
 
@@ -65,14 +66,14 @@ Run deterministic scenarios without manually editing datasets or model artifacts
 working directory under `runs/<timestamp>/<scenario>/` with isolated inputs and output artifacts.
 
 ```bash
-python scripts/run_scenario.py --scenario baseline --config configs/pipeline.config.yaml
-python scripts/run_scenario.py --scenario pii_injection --config configs/pipeline.config.yaml
+python scripts/run_scenario.py --scenario baseline --config configs/pipeline.config.json
+python scripts/run_scenario.py --scenario pii_injection --config configs/pipeline.config.json
 ```
 
 Scenario outputs are stored in `runs/.../artifacts/` and include all gate reports plus `REPORT_SUMMARY.json` and the
 HTML dashboard. Each run also writes `runs/.../scenario_metadata.json` with the injected parameters, input paths, and
 the gates expected to fail. Scenario parameters (such as row ratios) live under the `scenarios` section of
-`configs/pipeline.config.yaml`.
+`configs/pipeline.config.json`.
 
 ### Workflow snapshot
 

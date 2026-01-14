@@ -163,6 +163,18 @@ def build_gate_statuses(summary, resolved_paths, durations, thresholds, enabled_
     statuses = []
     for gate, config in GATE_RULES.items():
         if gate not in enabled_gates:
+            statuses.append(
+                {
+                    "id": gate,
+                    "label": config["label"],
+                    "passed": None,
+                    "skipped": True,
+                    "details": "Skipped (disabled)",
+                    "pass_criteria": config["pass_criteria"],
+                    "report_path": "",
+                    "duration_seconds": None,
+                }
+            )
             continue
         report = summary["reports"].get(gate)
         gate_thresholds = thresholds.get(gate, {})
@@ -173,6 +185,7 @@ def build_gate_statuses(summary, resolved_paths, durations, thresholds, enabled_
                 "id": gate,
                 "label": config["label"],
                 "passed": passed,
+                "skipped": False,
                 "details": details,
                 "pass_criteria": config["pass_criteria"],
                 "report_path": str(resolved_paths.get(gate, "")),
@@ -185,7 +198,10 @@ def build_gate_statuses(summary, resolved_paths, durations, thresholds, enabled_
 def render_dashboard(statuses, generated_at):
     rows = []
     for status in statuses:
-        badge = "✅" if status["passed"] else "❌"
+        if status.get("skipped"):
+            badge = "—"
+        else:
+            badge = "✅" if status["passed"] else "❌"
         duration_cell = (
             f"{status['duration_seconds']:.2f}s" if status.get("duration_seconds") else "—"
         )
