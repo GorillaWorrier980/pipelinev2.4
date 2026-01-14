@@ -70,8 +70,9 @@ python scripts/run_scenario.py --scenario baseline --config configs/pipeline.con
 python scripts/run_scenario.py --scenario pii_injection --config configs/pipeline.config.json
 ```
 
-Scenario outputs are stored in `runs/.../artifacts/` and include all gate reports plus `REPORT_SUMMARY.json` and the
-HTML dashboard. Each run also writes `runs/.../scenario_metadata.json` with the injected parameters, input paths, and
+Scenario outputs are stored in `runs/<run_id>/<scenario>/` and include all gate reports under `reports/` plus
+`REPORT_SUMMARY.json` and the HTML dashboard. Each run also writes `runs/.../scenario_metadata.json` with the injected
+parameters, input paths, and
 the gates expected to fail. Scenario parameters (such as row ratios) live under the `scenarios` section of
 `configs/pipeline.config.json`.
 
@@ -92,6 +93,20 @@ The GitHub Actions automation is consolidated into a single workflow named **Qua
 Each run installs the gate dependencies, executes `python run_pipeline.py`, and publishes the JSON/HTML reports (including `REPORT_SUMMARY.json` and `reports/timings.json`) alongside a job summary in the Actions UI. The summary renders a Mermaid pipeline with colored pass/fail nodes for every gate, lists per-gate durations and the total runtime, and links to the uploaded artifacts.
 
 Because the workflow now records both the pipeline timer (only the gate/aggregator Python steps) and the overall wall-clock time, the job summary also shows a "Setup & overhead" row that captures checkout, dependency installation, and artifact upload time. That explains why per-gate durations are fractions of a second while the entire GitHub Action can take a couple of minutes end-to-end.
+
+#### Running with external asset bundles
+
+To run the workflow against a packaged asset bundle (for example from a GitHub Release), trigger the **Quality Gates**
+workflow via the Actions UI and provide the asset URL to the `asset_bundle.zip` file. The bundle must include a
+`manifest.json` that lists the gate inputs (relative to the zip root), and the workflow will download, unzip, and set
+the expected environment variables before running `python run_pipeline.py`.
+
+Example `manifest.json` keys:
+`ge_input`, `presidio_input`, `shap_metadata`, `shap_weights`, `shap_reference`, `art_metadata`, `art_weights`,
+`art_reference`, `ragas_chunks`, `ragas_qa`.
+
+When using a Release asset, copy the asset download URL and paste it into the `asset_url` field when dispatching the
+workflow.
 
 ### SHAP & ART Defaults
 
