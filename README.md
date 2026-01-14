@@ -38,6 +38,22 @@ reports/
 
    Each gate runs independently and the aggregated report is refreshed at the end of the run.
 
+   To run with a versioned pipeline configuration, point the runner at the JSON config file:
+
+   ```bash
+   python scripts/run_pipeline.py --config configs/pipeline.config.json
+   ```
+
+   You can override the enabled gates by passing a comma-separated list (this ignores the config list):
+
+   ```bash
+   python scripts/run_pipeline.py --config configs/pipeline.config.json --gates "pii_scan,rag_eval"
+   ```
+
+   Gate names map to IDs as follows: `data_quality` → GE, `pii_scan` → Presidio, `explainability` → SHAP,
+   `robustness` → ART, and `rag_eval` → RAGAS. Thresholds in `configs/pipeline.config.json` control the
+   pass/fail rules for each gate and are consumed by the aggregator during report generation.
+
 3. (Optional) You can still orchestrate the original Docker services via `docker compose up --build` if you prefer container isolation.
 
 4. When the run completes, inspect the individual reports under `reports/**`, the consolidated `REPORT_SUMMARY.json` at the repository root, and the HTML dashboard at `reports/dashboard/index.html` for a quick pass/fail snapshot.

@@ -1,7 +1,13 @@
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from devaisecops.config import get_config, resolve_enabled_gates
 
 
 REPORT_PATHS = {
@@ -15,7 +21,7 @@ REPORT_PATHS = {
 DEFAULT_TIMINGS_PATH = "reports/timings.json"
 
 
-def evaluate_ge(report):
+def evaluate_ge(report, thresholds):
     if not report:
         return False, "Report missing"
     expectations = report.get("expectations") or []
@@ -26,12 +32,11 @@ def evaluate_ge(report):
     row_count = report.get("row_count", 0)
     columns = report.get("columns") or []
 
-    # Treat a zero-expectation report as a failure with an actionable message so
-    # the dashboard never shows the vague "No expectations were evaluated" text.
-    if total == 0:
+    minimum = thresholds.get("min_expectations", 1)
+    if total < minimum:
         return (
             False,
-            "GE report declared 0 expectations; verify headers/rows "
+            f"GE report declared {total} expectations; verify headers/rows "
             f"(rows: {row_count}, columns: {len(columns)})",
         )
 
@@ -42,45 +47,49 @@ def evaluate_ge(report):
     return False, f"{passed_count}/{total} expectations passed"
 
 
-def evaluate_presidio(report):
+def evaluate_presidio(report, thresholds):
     if not report:
         return False, "Report missing"
     if "total_entities" in report:
         total_hits = report.get("total_entities", 0)
     else:
         total_hits = sum(report.get("entity_counts", {}).values())
-    if total_hits > 0:
-        return False, f"Detected {total_hits} entities (policy blocks any PII)"
+    max_entities = thresholds.get("max_total_entities", 0)
+    if total_hits > max_entities:
+        return False, f"Detected {total_hits} entities (max allowed {max_entities})"
     return True, "No PII detected"
 
 
-def evaluate_shap(report):
+def evaluate_shap(report, thresholds):
     if not report:
         return False, "Report missing"
     importances = report.get("mean_abs_shap", [])
     if not importances:
         return False, "Missing importance scores"
     total = sum(importances)
-    if abs(total - 1.0) <= 0.01:
+    target = thresholds.get("sum_target", 1.0)
+    tolerance = thresholds.get("tolerance", 0.01)
+    if abs(total - target) <= tolerance:
         return True, "Importance scores normalized"
     return False, f"Scores sum to {total:.2f}"
 
 
-def evaluate_art(report):
+def evaluate_art(report, thresholds):
     if not report:
         return False, "Report missing"
     attacks = report.get("attacks", {})
     failing = []
+    min_adv = thresholds.get("min_adv_accuracy", 0.7)
     for name, payload in attacks.items():
         adv_acc = payload.get("adv_accuracy")
-        if adv_acc is None or adv_acc < 0.7:
+        if adv_acc is None or adv_acc < min_adv:
             failing.append(f"{name}: {adv_acc}")
     if failing:
         return False, "Low adversarial accuracy for " + ", ".join(failing)
-    return True, "All adversarial accuracies >= 0.70"
+    return True, f"All adversarial accuracies >= {min_adv:.2f}"
 
 
-def evaluate_ragas(report):
+def evaluate_ragas(report, thresholds):
     if not report:
         return False, "Report missing"
     mean_support = report.get("mean_support")
@@ -99,14 +108,16 @@ def evaluate_ragas(report):
     if metrics_missing:
         return False, "Missing metrics: " + ", ".join(metrics_missing)
 
-    passed = (mean_support >= 0.6) and (mean_coverage >= 0.6)
+    min_support = thresholds.get("min_support", 0.6)
+    min_coverage = thresholds.get("min_coverage", 0.6)
+    passed = (mean_support >= min_support) and (mean_coverage >= min_coverage)
     detail = (
         f"Support {mean_support:.2f}, coverage {mean_coverage:.2f}, "
         f"contexts/question {mean_contexts:.2f}"
     )
     if passed:
         return True, detail + " (support/coverage thresholds met)"
-    return False, detail + " (support or coverage below 0.60)"
+    return False, detail + f" (support or coverage below {min_support:.2f})"
 
 
 GATE_RULES = {
@@ -148,11 +159,14 @@ def load_json(path: Path):
         return None
 
 
-def build_gate_statuses(summary, resolved_paths, durations):
+def build_gate_statuses(summary, resolved_paths, durations, thresholds, enabled_gates):
     statuses = []
     for gate, config in GATE_RULES.items():
+        if gate not in enabled_gates:
+            continue
         report = summary["reports"].get(gate)
-        passed, details = config["evaluator"](report)
+        gate_thresholds = thresholds.get(gate, {})
+        passed, details = config["evaluator"](report, gate_thresholds)
         duration = durations.get(gate)
         statuses.append(
             {
@@ -221,6 +235,11 @@ def render_dashboard(statuses, generated_at):
 
 
 def main() -> None:
+    config_path = os.environ.get("PIPELINE_CONFIG")
+    pipeline_config = get_config(config_path) if config_path else get_config()
+    enabled_gates, _ = resolve_enabled_gates(pipeline_config)
+    enabled_gates_set = set(enabled_gates) if enabled_gates else set(GATE_RULES.keys())
+    thresholds = pipeline_config.get("thresholds", {})
     output_path = Path(os.environ.get("AGGREGATOR_OUTPUT", "REPORT_SUMMARY.json"))
     dashboard_path = Path(os.environ.get("DASHBOARD_OUTPUT", "reports/dashboard/index.html"))
     gate_status_dir = Path(
@@ -237,6 +256,8 @@ def main() -> None:
 
     resolved_paths = {}
     for name, relative_path in REPORT_PATHS.items():
+        if name not in enabled_gates_set:
+            continue
         report_path = Path(os.environ.get(f"REPORT_{name.upper()}", relative_path))
         resolved_paths[name] = report_path
         data = load_json(report_path)
@@ -253,7 +274,7 @@ def main() -> None:
             durations = timings_payload.get("durations_seconds", {}) or {}
             total_duration = timings_payload.get("total_seconds")
 
-    gate_statuses = build_gate_statuses(summary, resolved_paths, durations)
+    gate_statuses = build_gate_statuses(summary, resolved_paths, durations, thresholds, enabled_gates_set)
     os.makedirs(gate_status_dir, exist_ok=True)
 
     gate_status_files = {}
