@@ -1,0 +1,11 @@
+{
+  "name": "mnist_demo",
+  "dataset": "mnist",
+  "architecture": "linear_mnist_demo",
+  "num_classes": 10,
+  "input_shape": [
+    1,
+    4,
+    4
+  ]
+}

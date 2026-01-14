@@ -1,0 +1,129 @@
+name: Quality Gates
+
+on:
+  workflow_dispatch:
+    inputs:
+      asset_url:
+        description: Direct download URL of asset_bundle.zip from GitHub Release (releases/download/...)
+        required: false
+        type: string
+        default: https://github.com/GorillaWorrier980/pipelinev2.4/releases/download/pipeline-v2.5.0/asset_bundle.zip
+      asset_path:
+        description: Path to a checked-in asset_bundle.zip (used when asset_url is empty)
+        required: false
+        type: string
+        default: assets/asset_bundle.zip
+
+permissions:
+  contents: read
+
+jobs:
+  full-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            -r docker/ge/requirements.txt \
+            -r docker/presidio/requirements.txt \
+            -r docker/shap/requirements.txt \
+            -r docker/art/requirements.txt \
+            -r docker/ragas/requirements.txt
+
+      - name: Clean workspace outputs
+        run: |
+          rm -rf reports runs asset_bundle
+          rm -f REPORT_SUMMARY.json asset_bundle.zip
+
+      - name: Resolve asset bundle source
+        run: |
+          if [ -n "${{ inputs.asset_url }}" ]; then
+            echo "Using asset_url=${{ inputs.asset_url }}"
+            curl -L "${{ inputs.asset_url }}" -o asset_bundle.zip
+          else
+            echo "Using asset_path=${{ inputs.asset_path }}"
+            if [ ! -f "${{ inputs.asset_path }}" ]; then
+              echo "asset_bundle.zip not found at ${{ inputs.asset_path }}"
+              exit 1
+            fi
+            cp "${{ inputs.asset_path }}" asset_bundle.zip
+          fi
+          ls -lah asset_bundle.zip
+          file asset_bundle.zip
+
+      - name: Verify zip is valid
+        run: |
+          python - <<'PY'
+          import zipfile
+          p="asset_bundle.zip"
+          try:
+            with zipfile.ZipFile(p) as z:
+              bad=z.testzip()
+              assert bad is None, f"Corrupted entry: {bad}"
+              print("ZIP OK, files:", len(z.namelist()))
+          except Exception as e:
+            raise SystemExit(f"asset_bundle.zip is not a valid zip (often you downloaded HTML). Error: {e}")
+          PY
+
+      - name: Unzip asset bundle
+        run: |
+          unzip -q asset_bundle.zip -d asset_bundle
+          ls -lah asset_bundle
+          test -f asset_bundle/manifest.json
+
+      - name: Load bundle env from manifest
+        run: |
+          python scripts/load_bundle_env.py --bundle-dir asset_bundle >> $GITHUB_ENV
+
+      - name: Verify inputs are from bundle
+        run: |
+          echo "GE_INPUT=$GE_INPUT"
+          echo "PRESIDIO_INPUT=$PRESIDIO_INPUT"
+          ls -lah "$GE_INPUT"
+          ls -lah "$PRESIDIO_INPUT"
+          python - <<'PY'
+          import os, pandas as pd, hashlib
+          for k in ["GE_INPUT","PRESIDIO_INPUT"]:
+            p=os.environ[k]
+            print(k, "->", p, "size=", os.path.getsize(p))
+            if p.endswith(".csv"):
+              df=pd.read_csv(p)
+              print("  rows=", len(df), "cols=", len(df.columns), "has_notes=", ("notes" in df.columns))
+            h=hashlib.sha256(open(p,"rb").read(1024*1024)).hexdigest()
+            print("  sha256_1mb=", h)
+          PY
+
+      - name: Checkpoint A (ge,presidio)
+        run: |
+          python scripts/run_pipeline.py --config configs/pipeline.config.json --gates "ge,presidio" --no-aggregate --no-clean
+
+      - name: Checkpoint B (shap,art)
+        run: |
+          python scripts/run_pipeline.py --config configs/pipeline.config.json --gates "shap,art" --no-aggregate --no-clean
+
+      - name: Checkpoint C (ragas)
+        run: |
+          python scripts/run_pipeline.py --config configs/pipeline.config.json --gates "ragas" --no-aggregate --no-clean
+
+      - name: Aggregate
+        if: always()
+        run: |
+          python docker/aggregator/run_aggregator.py
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            REPORT_SUMMARY.json
+            reports/**
+            runs/**

@@ -1,0 +1,47 @@
+{
+  "run_mode": "full",
+  "enabled_gates": [
+    "data_quality",
+    "pii_scan",
+    "explainability",
+    "robustness",
+    "rag_eval"
+  ],
+  "thresholds": {
+    "ge": {
+      "min_expectations": 1
+    },
+    "presidio": {
+      "max_total_entities": 0
+    },
+    "shap": {
+      "sum_target": 1.0,
+      "tolerance": 0.01
+    },
+    "art": {
+      "min_adv_accuracy": 0.7
+    },
+    "ragas": {
+      "min_support": 0.6,
+      "min_coverage": 0.6
+    },
+    "sbom": {
+      "max_critical": 0,
+      "max_high": 0
+    }
+  },
+  "scenarios": {
+    "data_quality_degradation": {
+      "row_ratio": 0.34
+    },
+    "pii_injection": {
+      "row_ratio": 0.34
+    },
+    "explainability_shift": {
+      "weights_mode": "empty"
+    },
+    "robustness_drop": {
+      "weights_mode": "zeros"
+    }
+  }
+}
