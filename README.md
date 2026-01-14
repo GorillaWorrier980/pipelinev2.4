@@ -59,6 +59,8 @@ The GitHub Actions automation is consolidated into a single workflow named **Qua
 
 Each run installs the gate dependencies, executes `python run_pipeline.py`, and publishes the JSON/HTML reports (including `REPORT_SUMMARY.json` and `reports/timings.json`) alongside a job summary in the Actions UI. The summary renders a Mermaid pipeline with colored pass/fail nodes for every gate, lists per-gate durations and the total runtime, and links to the uploaded artifacts.
 
+Because the workflow now records both the pipeline timer (only the gate/aggregator Python steps) and the overall wall-clock time, the job summary also shows a "Setup & overhead" row that captures checkout, dependency installation, and artifact upload time. That explains why per-gate durations are fractions of a second while the entire GitHub Action can take a couple of minutes end-to-end.
+
 ### SHAP & ART Defaults
 
 The SHAP and ART gates evaluate a bundled MNIST-style linear classifier using real weights and a small reference set stored under `artifacts/models/classifier/mnist_cnn_weights.json` and `artifacts/data/models/mnist_samples.json`. The explainability step computes mean absolute SHAP contributions from those samples, while the robustness gate launches FGSM and PGD perturbations against the same model. Override the inputs and optional metadata/configuration via the `SHAP_*` and `ART_*` environment variables when supplying your own model artifacts.

@@ -13,6 +13,9 @@ jobs:
     name: gates / full-pipeline
     runs-on: ubuntu-latest
     steps:
+      - name: Record workflow start
+        run: echo "WORKFLOW_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -48,6 +51,7 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import time
           from pathlib import Path
 
           summary_path = Path("REPORT_SUMMARY.json")
@@ -74,6 +78,14 @@ jobs:
             lines.append(f"| Aggregator | — | Consolidated gate outputs | {agg_duration:.2f} |")
           if total_duration is not None:
             lines.append("| **Pipeline total** |  |  | **{:.2f}** |".format(total_duration))
+          workflow_started_raw = os.environ.get("WORKFLOW_STARTED_AT")
+          workflow_started = int(workflow_started_raw) if workflow_started_raw else None
+          if workflow_started:
+            workflow_elapsed = time.time() - workflow_started
+            lines.append("| **Workflow wall-clock** |  |  | **{:.2f}** |".format(workflow_elapsed))
+            if total_duration is not None:
+              overhead = workflow_elapsed - total_duration
+              lines.append("| Setup & overhead |  | Includes checkout, deps, artifact upload | {:.2f} |".format(overhead))
           lines.append("")
 
           diagram = ["```mermaid", "flowchart LR", "  trigger([GitHub Push/PR]):::neutral --> gates([Quality Gates]):::neutral", "  gates --> agg{{Aggregate}}:::neutral"]
