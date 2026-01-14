@@ -64,6 +64,7 @@ def main() -> None:
     scenario = args.scenario
     pipeline_config = get_config(args.config)
     scenario_settings = pipeline_config.get("scenarios", {})
+    run_mode = pipeline_config.get("run_mode", "unknown")
 
     timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     run_dir = REPO_ROOT / "runs" / timestamp / scenario
@@ -78,6 +79,7 @@ def main() -> None:
     metadata = {
         "scenario": scenario,
         "generated_at": datetime.utcnow().isoformat() + "Z",
+        "run_mode": run_mode,
         "inputs_root": str(run_inputs),
         "outputs_root": str(run_outputs),
         "expected_failed_gates": [],
