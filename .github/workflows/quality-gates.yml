@@ -7,6 +7,7 @@ on:
         description: Direct download URL of asset_bundle.zip from GitHub Release (releases/download/...)
         required: true
         type: string
+        default: https://github.com/GorillaWorrier980/pipelinev2.4/releases/download/pipeline-v2.5.0/asset_bundle.zip
 
 permissions:
   contents: read
