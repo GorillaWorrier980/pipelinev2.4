@@ -41,6 +41,16 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Comma-separated gate list to override enabled_gates.",
     )
+    parser.add_argument(
+        "--no-aggregate",
+        action="store_true",
+        help="Skip aggregator and timing refresh steps.",
+    )
+    parser.add_argument(
+        "--no-clean",
+        action="store_true",
+        help="No-op placeholder for compatibility with CI scripts.",
+    )
     return parser.parse_args()
 
 
@@ -74,6 +84,10 @@ def main() -> None:
         durations[gate_id] = time.perf_counter() - started
         if result.returncode != 0:
             raise SystemExit(f"Step '{label}' failed with exit code {result.returncode}")
+
+    if args.no_aggregate:
+        print("\n>>> Skipping aggregator step")
+        return
 
     # Run the aggregator once to produce outputs, capturing its runtime.
     label, gate_id, command = AGGREGATOR_STEP

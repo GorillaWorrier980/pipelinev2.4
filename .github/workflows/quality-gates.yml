@@ -1,57 +1,21 @@
 name: Quality Gates
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
     inputs:
-      scenario:
-        description: Scenario to run
-        type: choice
-        required: false
-        default: baseline
-        options:
-          - baseline
-          - data_quality_degradation
-          - pii_injection
-          - explainability_shift
-          - robustness_drop
-      run_mode:
-        description: Run mode for the pipeline config
-        type: choice
-        required: false
-        default: full
-        options:
-          - full
-          - premerge
-          - nightly
-          - release
-          - custom
-      gates:
-        description: Optional comma-separated gate list override
-        type: string
-        required: false
       asset_url:
-        description: URL to asset_bundle.zip (optional; enables external asset runs)
+        description: Direct download URL of asset_bundle.zip from GitHub Release (releases/download/...)
+        required: true
         type: string
-        required: false
-  schedule:
-    - cron: "0 3 * * *"
 
 permissions:
   contents: read
 
 jobs:
-  premerge:
-    name: gates / premerge
-    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+  full-pipeline:
     runs-on: ubuntu-latest
     steps:
-      - name: Record workflow start
-        run: echo "WORKFLOW_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
-
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -68,257 +32,82 @@ jobs:
             -r docker/art/requirements.txt \
             -r docker/ragas/requirements.txt
 
-      - name: Prepare premerge config
+      - name: Clean workspace outputs
+        run: |
+          rm -rf reports runs asset_bundle
+          rm -f REPORT_SUMMARY.json asset_bundle.zip
+
+      - name: Download asset bundle
+        run: |
+          echo "asset_url=${{ inputs.asset_url }}"
+          curl -L "${{ inputs.asset_url }}" -o asset_bundle.zip
+          ls -lah asset_bundle.zip
+          file asset_bundle.zip
+
+      - name: Verify zip is valid
         run: |
           python - <<'PY'
-          import json
-          from pathlib import Path
-
-          config_path = Path("configs/pipeline.config.json")
-          payload = json.loads(config_path.read_text())
-          payload["run_mode"] = "premerge"
-          Path("premerge.config.json").write_text(json.dumps(payload, indent=2))
+          import zipfile
+          p="asset_bundle.zip"
+          try:
+            with zipfile.ZipFile(p) as z:
+              bad=z.testzip()
+              assert bad is None, f"Corrupted entry: {bad}"
+              print("ZIP OK, files:", len(z.namelist()))
+          except Exception as e:
+            raise SystemExit(f"asset_bundle.zip is not a valid zip (often you downloaded HTML). Error: {e}")
           PY
 
-      - name: Run premerge gates
-        run: python scripts/run_pipeline.py --config premerge.config.json --gates "data_quality,pii_scan"
+      - name: Unzip asset bundle
+        run: |
+          unzip -q asset_bundle.zip -d asset_bundle
+          ls -lah asset_bundle
+          test -f asset_bundle/manifest.json
 
-      - name: Upload reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: quality-gates-reports
-          path: |
-            REPORT_SUMMARY.json
-            reports/**
-            runs/**
+      - name: Load bundle env from manifest
+        run: |
+          python scripts/load_bundle_env.py --bundle-dir asset_bundle >> $GITHUB_ENV
 
-      - name: Publish job summary
+      - name: Verify inputs are from bundle
+        run: |
+          echo "GE_INPUT=$GE_INPUT"
+          echo "PRESIDIO_INPUT=$PRESIDIO_INPUT"
+          ls -lah "$GE_INPUT"
+          ls -lah "$PRESIDIO_INPUT"
+          python - <<'PY'
+          import os, pandas as pd, hashlib
+          for k in ["GE_INPUT","PRESIDIO_INPUT"]:
+            p=os.environ[k]
+            print(k, "->", p, "size=", os.path.getsize(p))
+            if p.endswith(".csv"):
+              df=pd.read_csv(p)
+              print("  rows=", len(df), "cols=", len(df.columns), "has_notes=", ("notes" in df.columns))
+            h=hashlib.sha256(open(p,"rb").read(1024*1024)).hexdigest()
+            print("  sha256_1mb=", h)
+          PY
+
+      - name: Checkpoint A (ge,presidio)
+        run: |
+          python scripts/run_pipeline.py --config configs/pipeline.config.json --gates "ge,presidio" --no-aggregate --no-clean
+
+      - name: Checkpoint B (shap,art)
+        run: |
+          python scripts/run_pipeline.py --config configs/pipeline.config.json --gates "shap,art" --no-aggregate --no-clean
+
+      - name: Checkpoint C (ragas)
+        run: |
+          python scripts/run_pipeline.py --config configs/pipeline.config.json --gates "ragas" --no-aggregate --no-clean
+
+      - name: Aggregate
         if: always()
         run: |
-          python - <<'PY'
-          import json
-          import os
-          import time
-          from pathlib import Path
+          python docker/aggregator/run_aggregator.py
 
-          summary_path = Path("REPORT_SUMMARY.json")
-          if not summary_path.exists():
-            Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("Pipeline did not produce REPORT_SUMMARY.json\n")
-            raise SystemExit(0)
-
-          summary = json.loads(summary_path.read_text())
-          statuses = summary.get("gate_statuses", [])
-          durations = summary.get("durations_seconds", {})
-          total_duration = summary.get("total_duration_seconds")
-
-          lines = ["# Quality gate summary", ""]
-          lines.append("| Gate | Status | Details | Duration (s) |")
-          lines.append("| --- | --- | --- | --- |")
-          for status in statuses:
-            if status.get("skipped"):
-              badge = "—"
-            else:
-              badge = "✅" if status.get("passed") else "❌"
-            details = status.get("details", "")
-            duration = durations.get(status.get("id"))
-            duration_cell = f"{duration:.2f}" if duration is not None else "—"
-            lines.append(f"| {status.get('label', status.get('id', ''))} | {badge} | {details} | {duration_cell} |")
-          agg_duration = durations.get("aggregator")
-          if agg_duration is not None:
-            lines.append(f"| Aggregator | — | Consolidated gate outputs | {agg_duration:.2f} |")
-          if total_duration is not None:
-            lines.append("| **Pipeline total** |  |  | **{:.2f}** |".format(total_duration))
-          workflow_started_raw = os.environ.get("WORKFLOW_STARTED_AT")
-          workflow_started = int(workflow_started_raw) if workflow_started_raw else None
-          if workflow_started:
-            workflow_elapsed = time.time() - workflow_started
-            lines.append("| **Workflow wall-clock** |  |  | **{:.2f}** |".format(workflow_elapsed))
-            if total_duration is not None:
-              overhead = workflow_elapsed - total_duration
-              lines.append("| Setup & overhead |  | Includes checkout, deps, artifact upload | {:.2f} |".format(overhead))
-          lines.append("")
-
-          diagram = ["```mermaid", "flowchart LR", "  trigger([GitHub Push/PR]):::neutral --> gates([Quality Gates]):::neutral", "  gates --> agg{{Aggregate}}:::neutral"]
-          for status in statuses:
-            node_id = status.get("id", "gate")
-            label = status.get("label", node_id)
-            if status.get("skipped"):
-              badge = "—"
-            else:
-              badge = "✅" if status.get("passed") else "❌"
-            diagram.append(f"  agg --> {node_id}([{label} {badge}])")
-          diagram.append("  agg --> artifacts[[Reports & Dashboard]]")
-          diagram.append("  classDef pass fill:#d1fae5,stroke:#34d399,color:#065f46;")
-          diagram.append("  classDef fail fill:#fee2e2,stroke:#f87171,color:#991b1b;")
-          diagram.append("  classDef neutral fill:#e2e8f0,stroke:#94a3b8,color:#0f172a;")
-          for status in statuses:
-            node_id = status.get("id", "gate")
-            if status.get("skipped"):
-              diagram.append(f"  class {node_id} neutral")
-            else:
-              diagram.append(f"  class {node_id} {'pass' if status.get('passed') else 'fail'}")
-          diagram.append("  class trigger,gates,agg,artifacts neutral")
-          diagram.append("```")
-
-          lines.extend(diagram)
-          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("\n".join(lines))
-          PY
-
-  dispatch:
-    name: gates / scenario-dispatch
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Record workflow start
-        run: echo "WORKFLOW_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
-
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install \
-            -r docker/ge/requirements.txt \
-            -r docker/presidio/requirements.txt \
-            -r docker/shap/requirements.txt \
-            -r docker/art/requirements.txt \
-            -r docker/ragas/requirements.txt
-
-      - name: Prepare dispatch config
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          config_path = Path("configs/pipeline.config.json")
-          payload = json.loads(config_path.read_text())
-          payload["run_mode"] = "${{ github.event.inputs.run_mode }}"
-          Path("dispatch.config.json").write_text(json.dumps(payload, indent=2))
-          PY
-
-      - name: Download & unzip asset bundle
-        if: ${{ github.event.inputs.asset_url != '' }}
-        run: |
-          curl -L "${{ github.event.inputs.asset_url }}" -o asset_bundle.zip
-          unzip -q asset_bundle.zip -d asset_bundle
-
-      - name: Load asset manifest
-        if: ${{ github.event.inputs.asset_url != '' }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          manifest_path = Path("asset_bundle/manifest.json")
-          if not manifest_path.exists():
-              raise SystemExit("asset_bundle/manifest.json not found")
-          manifest = json.loads(manifest_path.read_text())
-          mappings = {
-              "ge_input": "GE_INPUT",
-              "presidio_input": "PRESIDIO_INPUT",
-              "shap_metadata": "SHAP_METADATA",
-              "shap_weights": "SHAP_WEIGHTS",
-              "shap_reference": "SHAP_REFERENCE",
-              "art_metadata": "ART_METADATA",
-              "art_weights": "ART_WEIGHTS",
-              "art_reference": "ART_REFERENCE",
-              "ragas_chunks": "RAGAS_CHUNKS",
-              "ragas_qa": "RAGAS_QA",
-          }
-          env_path = Path(os.environ["GITHUB_ENV"])
-          lines = []
-          for key, env_name in mappings.items():
-              value = manifest.get(key)
-              if value:
-                  lines.append(f"{env_name}=asset_bundle/{value}")
-          env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-          PY
-
-      - name: Run pipeline
-        if: ${{ github.event.inputs.asset_url != '' }}
-        run: python run_pipeline.py
-
-      - name: Run scenario
-        if: ${{ github.event.inputs.asset_url == '' }}
-        run: |
-          if [ -n "${{ github.event.inputs.gates }}" ]; then
-            python scripts/run_scenario.py \
-              --scenario "${{ github.event.inputs.scenario }}" \
-              --config dispatch.config.json \
-              --gates "${{ github.event.inputs.gates }}"
-          else
-            python scripts/run_scenario.py \
-              --scenario "${{ github.event.inputs.scenario }}" \
-              --config dispatch.config.json
-          fi
-
-      - name: Upload reports
+      - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: quality-gates-reports
-          path: |
-            REPORT_SUMMARY.json
-            reports/**
-            runs/**
-
-  nightly:
-    name: gates / nightly-scenarios
-    if: ${{ github.event_name == 'schedule' }}
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        scenario: [baseline, pii_injection]
-    steps:
-      - name: Record workflow start
-        run: echo "WORKFLOW_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
-
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install \
-            -r docker/ge/requirements.txt \
-            -r docker/presidio/requirements.txt \
-            -r docker/shap/requirements.txt \
-            -r docker/art/requirements.txt \
-            -r docker/ragas/requirements.txt
-
-      - name: Prepare nightly config
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          config_path = Path("configs/pipeline.config.json")
-          payload = json.loads(config_path.read_text())
-          payload["run_mode"] = "nightly"
-          Path("nightly.config.json").write_text(json.dumps(payload, indent=2))
-          PY
-
-      - name: Run scenario
-        run: |
-          python scripts/run_scenario.py \
-            --scenario "${{ matrix.scenario }}" \
-            --config nightly.config.json
-
-      - name: Upload reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: quality-gates-reports-${{ matrix.scenario }}
+          name: reports
           path: |
             REPORT_SUMMARY.json
             reports/**
