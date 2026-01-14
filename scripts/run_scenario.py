@@ -43,6 +43,11 @@ def parse_args() -> argparse.Namespace:
         default="configs/pipeline.config.yaml",
         help="Path to the pipeline config file.",
     )
+    parser.add_argument(
+        "--gates",
+        default=None,
+        help="Comma-separated gate list to override enabled_gates.",
+    )
     return parser.parse_args()
 
 
@@ -77,6 +82,7 @@ def main() -> None:
         "outputs_root": str(run_outputs),
         "expected_failed_gates": [],
         "parameters": {},
+        "gates_override": args.gates,
     }
 
     shap_weights_override = None
@@ -150,6 +156,8 @@ def main() -> None:
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
     command = [sys.executable, "scripts/run_pipeline.py", "--config", args.config]
+    if args.gates:
+        command.extend(["--gates", args.gates])
     result = subprocess.run(command, cwd=REPO_ROOT, env=env)
     if result.returncode != 0:
         raise SystemExit(f"Scenario run failed with exit code {result.returncode}")

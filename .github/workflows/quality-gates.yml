@@ -4,13 +4,43 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      scenario:
+        description: Scenario to run
+        type: choice
+        required: false
+        default: baseline
+        options:
+          - baseline
+          - data_quality_degradation
+          - pii_injection
+          - explainability_shift
+          - robustness_drop
+      run_mode:
+        description: Run mode for the pipeline config
+        type: choice
+        required: false
+        default: full
+        options:
+          - full
+          - premerge
+          - nightly
+          - release
+          - custom
+      gates:
+        description: Optional comma-separated gate list override
+        type: string
+        required: false
+  schedule:
+    - cron: "0 3 * * *"
 
 permissions:
   contents: read
 
 jobs:
-  gates:
-    name: gates / full-pipeline
+  premerge:
+    name: gates / premerge
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Record workflow start
@@ -34,8 +64,20 @@ jobs:
             -r docker/art/requirements.txt \
             -r docker/ragas/requirements.txt
 
-      - name: Run full pipeline
-        run: python run_pipeline.py
+      - name: Prepare premerge config
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config_path = Path("configs/pipeline.config.yaml")
+          payload = json.loads(config_path.read_text())
+          payload["run_mode"] = "premerge"
+          Path("premerge.config.json").write_text(json.dumps(payload, indent=2))
+          PY
+
+      - name: Run premerge gates
+        run: python scripts/run_pipeline.py --config premerge.config.json --gates "data_quality,pii_scan"
 
       - name: Upload reports
         uses: actions/upload-artifact@v4
@@ -44,6 +86,7 @@ jobs:
           path: |
             REPORT_SUMMARY.json
             reports/**
+            runs/**/artifacts/**
 
       - name: Publish job summary
         if: always()
@@ -107,3 +150,119 @@ jobs:
           lines.extend(diagram)
           Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text("\n".join(lines))
           PY
+
+  dispatch:
+    name: gates / scenario-dispatch
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record workflow start
+        run: echo "WORKFLOW_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            -r docker/ge/requirements.txt \
+            -r docker/presidio/requirements.txt \
+            -r docker/shap/requirements.txt \
+            -r docker/art/requirements.txt \
+            -r docker/ragas/requirements.txt
+
+      - name: Prepare dispatch config
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config_path = Path("configs/pipeline.config.yaml")
+          payload = json.loads(config_path.read_text())
+          payload["run_mode"] = "${{ github.event.inputs.run_mode }}"
+          Path("dispatch.config.json").write_text(json.dumps(payload, indent=2))
+          PY
+
+      - name: Run scenario
+        run: |
+          if [ -n "${{ github.event.inputs.gates }}" ]; then
+            python scripts/run_scenario.py \
+              --scenario "${{ github.event.inputs.scenario }}" \
+              --config dispatch.config.json \
+              --gates "${{ github.event.inputs.gates }}"
+          else
+            python scripts/run_scenario.py \
+              --scenario "${{ github.event.inputs.scenario }}" \
+              --config dispatch.config.json
+          fi
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gates-reports
+          path: |
+            REPORT_SUMMARY.json
+            reports/**
+            runs/**/artifacts/**
+
+  nightly:
+    name: gates / nightly-scenarios
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        scenario: [baseline, pii_injection, data_quality_degradation]
+    steps:
+      - name: Record workflow start
+        run: echo "WORKFLOW_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            -r docker/ge/requirements.txt \
+            -r docker/presidio/requirements.txt \
+            -r docker/shap/requirements.txt \
+            -r docker/art/requirements.txt \
+            -r docker/ragas/requirements.txt
+
+      - name: Prepare nightly config
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config_path = Path("configs/pipeline.config.yaml")
+          payload = json.loads(config_path.read_text())
+          payload["run_mode"] = "nightly"
+          Path("nightly.config.json").write_text(json.dumps(payload, indent=2))
+          PY
+
+      - name: Run scenario
+        run: |
+          python scripts/run_scenario.py \
+            --scenario "${{ matrix.scenario }}" \
+            --config nightly.config.json
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gates-reports-${{ matrix.scenario }}
+          path: |
+            REPORT_SUMMARY.json
+            reports/**
+            runs/**/artifacts/**
